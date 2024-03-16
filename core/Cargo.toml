@@ -1,0 +1,18 @@
+[package]
+name = "vital_vision_core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib"]
+
+[build-dependencies]
+swift-bridge-build = "0.1"
+
+[dependencies]
+btleplug = "0.11.5"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+uuid = { version = "1.7.0", features = ["v4"] }
+swift-bridge = "0.1"
+
