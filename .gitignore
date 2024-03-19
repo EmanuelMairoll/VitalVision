@@ -1,4 +1,9 @@
 core/target
 core/bindings
 core/.idea
+
+ios/Frameworks/*
+xcuserdata
+project.xcworkspace
+
 .DS_Store
