@@ -1,0 +1,9 @@
+namespace vvcore {
+  u64 my_rusty_add(u64 left, u64 right);
+};
+
+enum MyEnum {
+  "A",
+  "B",
+  "C",
+};

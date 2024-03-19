@@ -1,13 +1,18 @@
-use std::path::PathBuf;
+use uniffi_bindgen::bindings::TargetLanguage::{Kotlin, Swift};
+use uniffi_bindgen::generate_bindings;
 
 fn main() {
-    let out_dir = PathBuf::from("./generated");
-
-    let bridges = vec!["src/lib.rs"];
-    for path in &bridges {
-        println!("cargo:rerun-if-changed={}", path);
-    }
-
-    swift_bridge_build::parse_bridges(bridges)
-        .write_all_concatenated(out_dir, env!("CARGO_PKG_NAME"));
+    let udl_file = "./src/vvcore.udl";
+    let out_dir = "./bindings/";
+    uniffi_build::generate_scaffolding(udl_file).unwrap();
+    generate_bindings(
+        udl_file.into(),
+        None,
+        vec![Swift, Kotlin],
+        Some(out_dir.into()),
+        None,
+        None,
+        true,
+    )
+    .unwrap();
 }

@@ -1,5 +1,4 @@
 core/target
+core/bindings
 core/.idea
-core/VitalVisionCore
-core/generated
 .DS_Store
