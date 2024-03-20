@@ -1,9 +1,50 @@
 namespace vvcore {
-  u64 my_rusty_add(u64 left, u64 right);
+
 };
 
-enum MyEnum {
-  "A",
-  "B",
-  "C",
+dictionary Device {
+    string uuid;
+    string name;
+    u8 battery;
+    boolean connected;
+    DeviceStatus status;
+    sequence<Channel> channels;
+};
+
+dictionary Channel {
+    string uuid;
+    string name;
+    ChannelType channel_type;
+    ChannelStatus status;
+};
+
+enum DeviceStatus {
+    "Ok",
+    "SignalIssue",
+};
+
+enum ChannelStatus {
+    "Ok",
+    "SignalIssue",
+};
+
+enum ChannelType {
+    "ECG",
+    "PPG",
+};
+
+interface VVCore {
+    constructor();
+
+    [Async]
+    void run_ble_loop();
+
+    [Async]
+    sequence<Device> devices(boolean wait_for_change);
+
+    [Async]
+    Device device(string uuid, boolean wait_for_change);
+
+    [Async]
+    sequence<u16> channel_data(string channel_uuid, boolean wait_for_change);
 };
