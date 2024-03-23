@@ -4,6 +4,8 @@ import Charts
 extension ChannelType: CustomStringConvertible {
     public var description: String {
         switch self {
+        case .cnt:
+            "CNT"
         case .ecg:
             "ECG"
         case .ppg:

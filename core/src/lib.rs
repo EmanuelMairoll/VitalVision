@@ -40,6 +40,7 @@ pub enum ChannelStatus {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ChannelType {
+    CNT,
     ECG,
     PPG,
 }

@@ -29,6 +29,7 @@ enum ChannelStatus {
 };
 
 enum ChannelType {
+    "CNT",
     "ECG",
     "PPG",
 };
