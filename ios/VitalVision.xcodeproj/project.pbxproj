@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		88344C672BAEF8480036DA0E /* VitalVisionCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88344C662BAEF8480036DA0E /* VitalVisionCore.swift */; };
 		883521F02BA9C0A800632E56 /* vvcore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883521EE2BA9C0A800632E56 /* vvcore.swift */; };
 		883521F12BA9C0A800632E56 /* vvcore_framework.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 883521EF2BA9C0A800632E56 /* vvcore_framework.xcframework */; };
 		883521F32BAA3F9B00632E56 /* DeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883521F22BAA3F9B00632E56 /* DeviceView.swift */; };
 		883521F72BAA406900632E56 /* ChannelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883521F62BAA406900632E56 /* ChannelView.swift */; };
-		8897EB6A2BAAD9AC002C8474 /* VVCoreCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8897EB692BAAD9AC002C8474 /* VVCoreCollector.swift */; };
 		88A2A8D62BA9AAFA0090C703 /* VitalVisionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A2A8D52BA9AAFA0090C703 /* VitalVisionApp.swift */; };
 		88A2A8D82BA9AAFA0090C703 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A2A8D72BA9AAFA0090C703 /* ContentView.swift */; };
 		88A2A8DA2BA9AAFB0090C703 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 88A2A8D92BA9AAFB0090C703 /* Assets.xcassets */; };
@@ -19,6 +19,7 @@
 		88A2A8E82BA9AAFB0090C703 /* VitalVisionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A2A8E72BA9AAFB0090C703 /* VitalVisionTests.swift */; };
 		88A2A8F22BA9AAFB0090C703 /* VitalVisionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A2A8F12BA9AAFB0090C703 /* VitalVisionUITests.swift */; };
 		88A2A8F42BA9AAFB0090C703 /* VitalVisionUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A2A8F32BA9AAFB0090C703 /* VitalVisionUITestsLaunchTests.swift */; };
+		88C362062BAE38F400252ADF /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 88C362052BAE38F400252ADF /* CoreBluetooth.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -39,11 +40,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		88344C662BAEF8480036DA0E /* VitalVisionCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VitalVisionCore.swift; sourceTree = "<group>"; };
 		883521EE2BA9C0A800632E56 /* vvcore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = vvcore.swift; sourceTree = "<group>"; };
 		883521EF2BA9C0A800632E56 /* vvcore_framework.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = vvcore_framework.xcframework; sourceTree = "<group>"; };
 		883521F22BAA3F9B00632E56 /* DeviceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceView.swift; sourceTree = "<group>"; };
 		883521F62BAA406900632E56 /* ChannelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelView.swift; sourceTree = "<group>"; };
-		8897EB692BAAD9AC002C8474 /* VVCoreCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VVCoreCollector.swift; sourceTree = "<group>"; };
 		88A2A8D22BA9AAFA0090C703 /* VitalVision.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VitalVision.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		88A2A8D52BA9AAFA0090C703 /* VitalVisionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VitalVisionApp.swift; sourceTree = "<group>"; };
 		88A2A8D72BA9AAFA0090C703 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -55,6 +56,8 @@
 		88A2A8ED2BA9AAFB0090C703 /* VitalVisionUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VitalVisionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		88A2A8F12BA9AAFB0090C703 /* VitalVisionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VitalVisionUITests.swift; sourceTree = "<group>"; };
 		88A2A8F32BA9AAFB0090C703 /* VitalVisionUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VitalVisionUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		88C362052BAE38F400252ADF /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.4.sdk/System/Library/Frameworks/CoreBluetooth.framework; sourceTree = DEVELOPER_DIR; };
+		88C362072BAE3D8200252ADF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +65,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				88C362062BAE38F400252ADF /* CoreBluetooth.framework in Frameworks */,
 				883521F12BA9C0A800632E56 /* vvcore_framework.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -86,6 +90,7 @@
 		8881463C2BA9AB98006E7C37 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				88C362052BAE38F400252ADF /* CoreBluetooth.framework */,
 				883521EF2BA9C0A800632E56 /* vvcore_framework.xcframework */,
 				883521EE2BA9C0A800632E56 /* vvcore.swift */,
 			);
@@ -116,11 +121,12 @@
 		88A2A8D42BA9AAFA0090C703 /* VitalVision */ = {
 			isa = PBXGroup;
 			children = (
+				88C362072BAE3D8200252ADF /* Info.plist */,
 				88A2A8D52BA9AAFA0090C703 /* VitalVisionApp.swift */,
 				88A2A8D72BA9AAFA0090C703 /* ContentView.swift */,
 				883521F22BAA3F9B00632E56 /* DeviceView.swift */,
 				883521F62BAA406900632E56 /* ChannelView.swift */,
-				8897EB692BAAD9AC002C8474 /* VVCoreCollector.swift */,
+				88344C662BAEF8480036DA0E /* VitalVisionCore.swift */,
 				88A2A8D92BA9AAFB0090C703 /* Assets.xcassets */,
 				88A2A8DB2BA9AAFB0090C703 /* VitalVision.entitlements */,
 				88A2A8DC2BA9AAFB0090C703 /* Preview Content */,
@@ -286,9 +292,9 @@
 				883521F72BAA406900632E56 /* ChannelView.swift in Sources */,
 				88A2A8D82BA9AAFA0090C703 /* ContentView.swift in Sources */,
 				88A2A8D62BA9AAFA0090C703 /* VitalVisionApp.swift in Sources */,
+				88344C672BAEF8480036DA0E /* VitalVisionCore.swift in Sources */,
 				883521F32BAA3F9B00632E56 /* DeviceView.swift in Sources */,
 				883521F02BA9C0A800632E56 /* vvcore.swift in Sources */,
-				8897EB6A2BAAD9AC002C8474 /* VVCoreCollector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -453,6 +459,8 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VitalVision/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "For connection to the BLE devices";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -492,6 +500,8 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VitalVision/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "For connection to the BLE devices";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

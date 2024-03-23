@@ -1,9 +1,14 @@
-use async_std::future::{pending, timeout};
+use async_std::sync::{Arc, RwLock};
 use rand::prelude::*;
-use std::time::Duration;
+use tokio::sync::watch::{self, Receiver, Sender};
 
 uniffi::include_scaffolding!("vvcore");
 
+pub mod ble;
+mod mock;
+pub mod storage;
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Device {
     uuid: String,
     name: String,
@@ -13,6 +18,7 @@ pub struct Device {
     channels: Vec<Channel>,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct Channel {
     uuid: String,
     name: String,
@@ -20,128 +26,75 @@ pub struct Channel {
     status: ChannelStatus,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub enum DeviceStatus {
     Ok,
     SignalIssue,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub enum ChannelStatus {
     Ok,
     SignalIssue,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub enum ChannelType {
     ECG,
     PPG,
 }
 
-pub struct VVCore {}
+pub struct VVCoreConfig {
+    pub hist_size: u32,
+    pub ble_service_filter: String,
+    pub mock_data: bool,
+}
+
+pub trait VVCoreDelegate: Send + Sync {
+    fn devices_changed(&self, devices: Vec<Device>);
+    fn new_data(&self, uuid: String, data: Vec<u16>);
+}
+
+pub struct VVCore {
+    config: VVCoreConfig,
+    delegate: Arc<dyn VVCoreDelegate>,
+    storage: Arc<RwLock<storage::Storage>>,
+    ble: Arc<ble::Ble>,
+    rt: tokio::runtime::Runtime,
+}
 
 impl VVCore {
-    pub fn new() -> Self {
-        Self {}
-    }
+    pub fn new(config: VVCoreConfig, delegate: Arc<dyn VVCoreDelegate>) -> Self {
+        let storage = storage::Storage::new(config.hist_size.try_into().unwrap(), delegate.clone());
+        let arc_storage = Arc::new(RwLock::new(storage));
 
-    pub async fn run_ble_loop(&self) {
-        println!("BLE loop started");
-        loop {
-            async_std::task::sleep(Duration::from_secs(1)).await;
+        let ble = ble::Ble::new(arc_storage.clone());
+        let arc_ble = Arc::new(ble);
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        Self {
+            config,
+            delegate,
+            storage: arc_storage,
+            ble: arc_ble,
+            rt,
         }
     }
 
-    pub async fn devices(&self, wait_for_change: bool) -> Vec<Device> {
-        if wait_for_change {
-            let never = pending::<()>();
-            timeout(Duration::from_secs(10), never).await.unwrap_err();
+    pub fn start_ble_loop(&self) {
+        if self.config.mock_data {
+            let delegate = self.delegate.clone();
+            self.rt.spawn(async move {
+                mock::mock_loop(delegate).await;
+            });
+            return;
         }
 
-        let mut rng = rand::thread_rng();
-
-        vec![
-            Device {
-                uuid: "123".to_string(),
-                name: "Device 1".to_string(),
-                battery: rng.gen_range(0..100),
-                connected: true,
-                status: DeviceStatus::Ok,
-                channels: vec![
-                    Channel {
-                        uuid: "124".to_string(),
-                        name: "ECG".to_string(),
-                        channel_type: ChannelType::ECG,
-                        status: ChannelStatus::Ok,
-                    },
-                    Channel {
-                        uuid: "125".to_string(),
-                        name: "PPG".to_string(),
-                        channel_type: ChannelType::PPG,
-                        status: ChannelStatus::Ok,
-                    },
-                ],
-            },
-            Device {
-                uuid: "126".to_string(),
-                name: "Device 2".to_string(),
-                battery: rng.gen_range(0..100),
-                connected: true,
-                status: DeviceStatus::Ok,
-                channels: vec![
-                    Channel {
-                        uuid: "127".to_string(),
-                        name: "ECG".to_string(),
-                        channel_type: ChannelType::ECG,
-                        status: ChannelStatus::Ok,
-                    },
-                    Channel {
-                        uuid: "128".to_string(),
-                        name: "PPG".to_string(),
-                        channel_type: ChannelType::PPG,
-                        status: ChannelStatus::Ok,
-                    },
-                ],
-            },
-        ]
-    }
-
-    pub async fn device(&self, uuid: String, wait_for_change: bool) -> Device {
-        if wait_for_change {
-            let never = pending::<()>();
-            timeout(Duration::from_secs(1), never).await.unwrap_err();
-        }
-
-        let mut rng = rand::thread_rng();
-
-        Device {
-            uuid: uuid.clone(),
-            name: "Device 1".to_string(),
-            battery: rng.gen_range(0..100),
-            connected: true,
-            status: DeviceStatus::Ok,
-            channels: vec![
-                Channel {
-                    uuid: "123".to_string(),
-                    name: "ECG".to_string(),
-                    channel_type: ChannelType::ECG,
-                    status: ChannelStatus::Ok,
-                },
-                Channel {
-                    uuid: "124".to_string(),
-                    name: "PPG".to_string(),
-                    channel_type: ChannelType::PPG,
-                    status: ChannelStatus::Ok,
-                },
-            ],
-        }
-    }
-
-    pub async fn channel_data(&self, channel_uuid: String, wait_for_change: bool) -> Vec<u16> {
-        if wait_for_change {
-            let never = pending::<()>();
-            timeout(Duration::from_secs(1), never).await.unwrap_err();
-        }
-
-        let mut rng = rand::thread_rng();
-
-        (0..100).map(|_| rng.gen_range(0..100)).collect()
+        let ble = self.ble.clone();
+        let filter = self.config.ble_service_filter.clone();
+        self.rt.spawn(async move {
+            ble.run_loop(filter).await.unwrap();
+        });
     }
 }

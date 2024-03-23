@@ -33,18 +33,21 @@ enum ChannelType {
     "PPG",
 };
 
+dictionary VVCoreConfig {
+    u32 hist_size;
+    string ble_service_filter;
+    boolean mock_data;
+};
+
+[Trait, WithForeign]
+interface VVCoreDelegate {
+    void devices_changed(sequence<Device> devices);
+
+    void new_data(string channel_uuid, sequence<u16> data);
+};
+
 interface VVCore {
-    constructor();
+    constructor(VVCoreConfig config, VVCoreDelegate delegate);
 
-    [Async]
-    void run_ble_loop();
-
-    [Async]
-    sequence<Device> devices(boolean wait_for_change);
-
-    [Async]
-    Device device(string uuid, boolean wait_for_change);
-
-    [Async]
-    sequence<u16> channel_data(string channel_uuid, boolean wait_for_change);
+    void start_ble_loop();
 };

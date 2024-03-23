@@ -12,7 +12,7 @@ extension DeviceStatus: CustomStringConvertible {
 }
 
 struct DevicePreviewView: View {
-    let core: VvCore
+    let core: VitalVisionCore
     let device: Device
     
     var body: some View {
@@ -34,7 +34,7 @@ struct DevicePreviewView: View {
 }
 
 struct DeviceDetailView: View {
-    let core: VvCore
+    let core: VitalVisionCore
     let device: Device
         
     var body: some View {
@@ -46,10 +46,7 @@ struct DeviceDetailView: View {
                 Text("Battery Level: \(device.battery)%")
             }
             Section(header: Text("Channels")) {
-                let _ = print("DeviceDetailView: \(device.channels)")
-                
                 ForEach(device.channels, id: \.uuid) { channel in
-                    let _ = print("DeviceDetailView: \(channel)")
                     NavigationLink(destination: ChannelDetailView(core: core, channel: channel)) {
                         
                         HStack {

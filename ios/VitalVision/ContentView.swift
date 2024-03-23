@@ -2,22 +2,16 @@ import SwiftUI
 
 struct ContentView: View {
     
-    @State var core = VvCore() // using @State to not reinstanciate core on every update
-    
-    @StateObject var devicesCollector: AsyncCollector<[Device]>
+    @State var core:VitalVisionCore  = VitalVisionCore()
+    @State var devices: [Device]? = nil
 
-    init(){
-        let core = VvCore()
-        let collector = core.collectDevices()
-        _devicesCollector = StateObject(wrappedValue: collector)
-    }
     
 #if os(macOS)
     @State var selectedDevice: Device?
     
     var body: some View {
         NavigationSplitView {
-            if let devices = devicesCollector.data {
+            if let devices = devices {
                 List(devices, id: \.uuid, selection: $selectedDevice) { device in
                     DevicePreviewView(core: core, device: device)
                         
@@ -34,11 +28,14 @@ struct ContentView: View {
                 Text("No device selected")
             }
         }
+        .onReceive(core.devicesSubject) { devices in
+            self.devices = devices
+        }
     }
 #else
     var body: some View {
         NavigationStack {
-            if let devices = devicesCollector.data {
+            if let devices = devices {
                 List(devices, id: \.uuid) { device in
                     DevicePreviewView(core: core, device: device)
                 }
@@ -48,9 +45,13 @@ struct ContentView: View {
                 ProgressView()
             }
         }
+        .onReceive(core.devicesSubject) { devices in
+            self.devices = devices
+        }
     }
 #endif
 
+    
 }
 
 

@@ -45,21 +45,15 @@ struct ChannelPreviewView: View {
 }
 
 struct ChannelDetailView: View {
-    let core: VvCore
+    let core: VitalVisionCore
     let channel: Channel
-    @StateObject var channelDataCollector: AsyncCollector<[UInt16]>
-    
-    init(core: VvCore, channel: Channel) {
-        self.core = core
-        self.channel = channel
-        let collector = core.collectChannelData(channelUuid: channel.uuid)
-        _channelDataCollector = StateObject(wrappedValue: collector)
-    }
-    
+
+    @State var channelData: [UInt16]? = nil
+        
     var body: some View {
         VStack {
             Chart {
-                if let values = channelDataCollector.data {
+                if let values = channelData {
                     ForEach(values.indices, id: \.self) { index in
                         LineMark(
                             x: .value("Time", index),
@@ -69,7 +63,7 @@ struct ChannelDetailView: View {
                 }
             }
             .frame(height: 300)
-            //.chartYScale(domain: [0, 60])
+            .chartYScale(domain: [UInt16.min, UInt16.max])
             Spacer()
             Text("\(channel.status)")
                 .font(.title)
@@ -77,5 +71,10 @@ struct ChannelDetailView: View {
 
         }
         .navigationTitle(channel.name)
+        .onReceive(core.dataSubject) { channelUuid, data in
+            if channelUuid == channel.uuid {
+                self.channelData = data
+            }
+        }
     }
 }
