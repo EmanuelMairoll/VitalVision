@@ -29,20 +29,17 @@ struct ChannelPreviewView: View {
     let channel: Channel
     
     var body: some View {
-        VStack {
-            Text(channel.name)
-                .font(.title)
-                .padding()
-            Text(channel.channelType.description)
-                .font(.title2)
-                .padding()
+        HStack {
+            VStack(alignment: .leading) {
+                Text(channel.name)
+                Text(channel.id)
+                    .font(.caption)
+                    .lineLimit(1)
+            }
             Spacer()
-            Text(channel.status.description)
-                .font(.title)
-                .padding()
+            Text(channel.channelType.description)
+            StatusIndicator(isOk: channel.status == .ok)
         }
-        .navigationTitle(channel.name)
-        .id(channel.uuid)
     }
 }
 
@@ -65,7 +62,8 @@ struct ChannelDetailView: View {
                 }
             }
             .frame(height: 300)
-            .chartYScale(domain: [UInt16.min, UInt16.max])
+            .labelsHidden()
+            .chartYScale(domain: [channel.signalMin, channel.signalMax])
             Spacer()
             Text("\(channel.status)")
                 .font(.title)
@@ -73,8 +71,8 @@ struct ChannelDetailView: View {
 
         }
         .navigationTitle(channel.name)
-        .onReceive(core.dataSubject) { channelUuid, data in
-            if channelUuid == channel.uuid {
+        .onReceive(core.dataSubject) { channelId, data in
+            if channelId == channel.id {
                 self.channelData = data
             }
         }

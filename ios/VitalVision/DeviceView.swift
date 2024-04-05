@@ -19,17 +19,19 @@ struct DevicePreviewView: View {
         NavigationLink(destination: DeviceDetailView(core: core, device: device)) {
             HStack {
                 VStack(alignment: .leading) {
-                    Text(device.name)
-                    Text(device.uuid)
+                    Text("\(device.name) (\(device.serial))" )
+                    Text(device.mac)
                         .font(.caption)
                         .lineLimit(1)
                 }
                 Spacer()
+                Text("\(device.driftUs / 1000)ms")
+                    .font(.caption)
                 BatteryIndicator(level: device.battery)
                 StatusIndicator(isOk: true /*device.isConnected*/)
             }
         }
-        .id(device.uuid)
+        .id(device.mac)
     }
 }
 
@@ -40,32 +42,22 @@ struct DeviceDetailView: View {
     var body: some View {
         List {
             Section(header: Text("Device Info")) {
-                Text("UUID: \(device.uuid)")
+                Text("MAC: \(device.mac)")
                 Text("Status: \(device.status.description)")
                 Text("Connected: \(device.connected ? "YES" : "NO")")
+                Text("Time Drift: \(device.driftUs / 1000)ms")
                 Text("Battery Level: \(device.battery)%")
             }
             Section(header: Text("Channels")) {
-                ForEach(device.channels, id: \.uuid) { channel in
+                ForEach(device.channels, id: \.id) { channel in
                     NavigationLink(destination: ChannelDetailView(core: core, channel: channel)) {
-                        
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(channel.name)
-                                Text(channel.uuid)
-                                    .font(.caption)
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            Text(channel.channelType.description)
-                            StatusIndicator(isOk: channel.status == .ok)
-                        }
+                        ChannelPreviewView(channel: channel)
                     }
                 }
             }
         }
         .navigationTitle(device.name)
-        .id(device.uuid)
+        .id(device.mac)
     }
 }
 

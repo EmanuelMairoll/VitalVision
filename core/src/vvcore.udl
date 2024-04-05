@@ -3,18 +3,22 @@ namespace vvcore {
 };
 
 dictionary Device {
-    string uuid;
+    string mac;
+    u16 serial;
     string name;
     u8 battery;
+    i64 drift_us;
     boolean connected;
     DeviceStatus status;
     sequence<Channel> channels;
 };
 
 dictionary Channel {
-    string uuid;
+    string id;
     string name;
     ChannelType channel_type;
+    u16 signal_max;
+    u16 signal_min;
     ChannelStatus status;
 };
 
@@ -35,9 +39,14 @@ enum ChannelType {
 };
 
 dictionary VVCoreConfig {
-    u32 hist_size;
-    string ble_service_filter;
-    boolean mock_data;
+    u32 hist_size_api;
+    u32 hist_size_analytics;
+    u32 max_initial_rtt_ms;
+    u32 sync_interval_min;
+    string ble_mac_prefix;
+    u8 max_signal_resolution_bit;
+    u8 max_signal_sampling_rate_hz;
+    boolean enable_mock_devices;
 };
 
 [Trait, WithForeign]
@@ -51,4 +60,6 @@ interface VVCore {
     constructor(VVCoreConfig config, VVCoreDelegate delegate);
 
     void start_ble_loop();
+
+    void sync_time();
 };

@@ -1,7 +1,6 @@
 use super::*;
 
 use std::collections::HashMap;
-use tokio::sync::watch::{self, Receiver, Sender};
 
 mod ringbuffer;
 
@@ -22,6 +21,10 @@ impl Storage {
             data: HashMap::new(),
             delegate,
         }
+    }
+
+    pub fn get_devices(&self) -> Vec<Device> {
+        self.devices.clone()
     }
 
     pub fn modify_devices(&mut self, f: impl FnOnce(&mut Vec<Device>)) {

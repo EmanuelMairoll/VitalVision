@@ -15,6 +15,7 @@ tokio = { version = "1", features = ["full"] }
 futures = "0.3"
 uuid = { version = "1.7.0", features = ["v4"] }
 rand = "0.8.5"
+chrono = "0.4.19"
 
 [build-dependencies]
 uniffi_build = "0.26.1"

@@ -12,6 +12,7 @@
 		883521F12BA9C0A800632E56 /* vvcore_framework.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 883521EF2BA9C0A800632E56 /* vvcore_framework.xcframework */; };
 		883521F32BAA3F9B00632E56 /* DeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883521F22BAA3F9B00632E56 /* DeviceView.swift */; };
 		883521F72BAA406900632E56 /* ChannelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883521F62BAA406900632E56 /* ChannelView.swift */; };
+		8858CA052BBB77AE00F32FFA /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8858CA042BBB77AE00F32FFA /* SettingsView.swift */; };
 		88A2A8D62BA9AAFA0090C703 /* VitalVisionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A2A8D52BA9AAFA0090C703 /* VitalVisionApp.swift */; };
 		88A2A8D82BA9AAFA0090C703 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A2A8D72BA9AAFA0090C703 /* ContentView.swift */; };
 		88A2A8DA2BA9AAFB0090C703 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 88A2A8D92BA9AAFB0090C703 /* Assets.xcassets */; };
@@ -45,6 +46,7 @@
 		883521EF2BA9C0A800632E56 /* vvcore_framework.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = vvcore_framework.xcframework; sourceTree = "<group>"; };
 		883521F22BAA3F9B00632E56 /* DeviceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceView.swift; sourceTree = "<group>"; };
 		883521F62BAA406900632E56 /* ChannelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelView.swift; sourceTree = "<group>"; };
+		8858CA042BBB77AE00F32FFA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		88A2A8D22BA9AAFA0090C703 /* VitalVision.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VitalVision.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		88A2A8D52BA9AAFA0090C703 /* VitalVisionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VitalVisionApp.swift; sourceTree = "<group>"; };
 		88A2A8D72BA9AAFA0090C703 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 				883521F22BAA3F9B00632E56 /* DeviceView.swift */,
 				883521F62BAA406900632E56 /* ChannelView.swift */,
 				88344C662BAEF8480036DA0E /* VitalVisionCore.swift */,
+				8858CA042BBB77AE00F32FFA /* SettingsView.swift */,
 				88A2A8D92BA9AAFB0090C703 /* Assets.xcassets */,
 				88A2A8DB2BA9AAFB0090C703 /* VitalVision.entitlements */,
 				88A2A8DC2BA9AAFB0090C703 /* Preview Content */,
@@ -289,6 +292,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8858CA052BBB77AE00F32FFA /* SettingsView.swift in Sources */,
 				883521F72BAA406900632E56 /* ChannelView.swift in Sources */,
 				88A2A8D82BA9AAFA0090C703 /* ContentView.swift in Sources */,
 				88A2A8D62BA9AAFA0090C703 /* VitalVisionApp.swift in Sources */,

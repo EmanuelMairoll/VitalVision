@@ -7,54 +7,66 @@
 
 import Combine
 
-class VitalVisionCore: VvCoreDelegate {
+class VitalVisionCore {
 
-    public let devicesSubject: PassthroughSubject<[Device], Never>
-    public let dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16]), Never>
-    
+    public let devicesSubject: PassthroughSubject<[Device], Never>  = PassthroughSubject<[Device], Never>()
+    public let dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16]), Never>  = PassthroughSubject<(channelUuid: String, data: [UInt16]), Never>()
+     
+    var appliedConfig: VvCoreConfig? = nil
+    var vvcore: VvCore?
+
     // not using VitalVisionCore as callback directly to break ARC cycle
     class Delegate: VvCoreDelegate {
+        init(devicesSubject: PassthroughSubject<[Device], Never>, dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16]), Never>) {
+            self.devicesSubject = devicesSubject
+            self.dataSubject = dataSubject
+        }
+        
+        public let devicesSubject: PassthroughSubject<[Device], Never>
+        public let dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16]), Never>
+
         public weak var wself: VitalVisionCore?
         
         func devicesChanged(devices: [Device]) {
-            wself?.devicesChanged(devices: devices)
+            Task {
+                await MainActor.run {
+                    devicesSubject.send(devices)
+                }
+            }
         }
         
         func newData(channelUuid: String, data: [UInt16]) {
-            wself?.newData(channelUuid: channelUuid, data: data)
-
+            Task {
+                await MainActor.run {
+                    dataSubject.send((channelUuid: channelUuid, data: data))
+                }
+            }
         }
     }
     
-    public let vvcore: VvCore
     
-    init() {
-        let config = VvCoreConfig(histSize: 100, bleServiceFilter: "DCF31A27-A904-F3A3-AA4E-5AE42F1217B6", mockData: false)
-        let delegate = Delegate()
+    func applyConfig(histSizeApi: Int, histSizeAnalytics: Int, maxInitialRttMs: Int, syncIntervalMin: Int, bleMacPrefix: String, maxSignalResolutionBit: Int, maxSignalSamplingRateHz: Int, enableMockDevices: Bool){
+        let config = VvCoreConfig(histSizeApi: UInt32(histSizeApi), histSizeAnalytics: UInt32(histSizeAnalytics), maxInitialRttMs: UInt32(maxInitialRttMs), syncIntervalMin: UInt32(syncIntervalMin), bleMacPrefix: bleMacPrefix, maxSignalResolutionBit: UInt8(maxSignalResolutionBit), maxSignalSamplingRateHz: UInt8(maxSignalSamplingRateHz), enableMockDevices: enableMockDevices)
         
-        self.devicesSubject = PassthroughSubject<[Device], Never>()
-        self.dataSubject = PassthroughSubject<(channelUuid: String, data: [UInt16]), Never>()
+        // assume config has changed
+        guard appliedConfig != config else {
+            return
+        }
         
-        vvcore = VvCore(config: config, delegate: delegate)
+        let delegate = Delegate(devicesSubject: devicesSubject, dataSubject: dataSubject)
+
+        let vvcore = VvCore(config: config, delegate: delegate)
         vvcore.startBleLoop()
+
+        // overwriting an old, non-nil vvcore (should) remove its last ARC reference
+        self.vvcore = vvcore
+        self.appliedConfig = config
         
         delegate.wself = self
+        
     }
     
-    func devicesChanged(devices: [Device]) {
-        Task {
-            await MainActor.run {
-                devicesSubject.send(devices)
-            }
-        }
+    func syncTime(){
+        vvcore?.syncTime()
     }
-    
-    func newData(channelUuid: String, data: [UInt16]) {
-        Task {
-            await MainActor.run {
-                dataSubject.send((channelUuid: channelUuid, data: data))
-            }
-        }
-    }
-    
 }

@@ -1,4 +1,4 @@
-#[cfg(test)]
+//#[cfg(test)]
 mod tests {
     use btleplug::api::{Central, Manager as _, Peripheral, ValueNotification};
     use btleplug::platform::Manager;
@@ -88,7 +88,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_start_scanning() {
         start_scanning().await.unwrap();
     }

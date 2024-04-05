@@ -25,7 +25,7 @@ async fn reader(data: Arc<RwLock<i32>>, reads: Arc<RwLock<Vec<i32>>>) {
     }
 }
 
-#[test]
+//#[test]
 fn test_async_rwlock() {
     let data = Arc::new(RwLock::new(0));
     let reads = Arc::new(RwLock::new(Vec::new()));

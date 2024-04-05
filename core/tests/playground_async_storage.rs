@@ -1,4 +1,4 @@
-#[cfg(test)]
+//#[cfg(test)]
 mod tests {
     use async_std::channel::{self, Receiver, Sender};
     //use async_std::sync::Arc;
