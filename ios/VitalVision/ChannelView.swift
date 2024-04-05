@@ -47,17 +47,19 @@ struct ChannelDetailView: View {
     let core: VitalVisionCore
     let channel: Channel
 
-    @State var channelData: [UInt16]? = nil
+    @State var channelData: [UInt16?]? = nil
         
     var body: some View {
         VStack {
             Chart {
                 if let values = channelData {
                     ForEach(values.indices, id: \.self) { index in
-                        LineMark(
-                            x: .value("Time", index),
-                            y: .value("Value", values[index])
-                        )
+                        if let val = values[index] {
+                            LineMark(
+                                x: .value("Time", index),
+                                y: .value("Value", val)
+                            )
+                        }
                     }
                 }
             }

@@ -11,10 +11,11 @@ pub async fn mock_loop(delegate: Arc<dyn VVCoreDelegate>) {
 
         for device in devices.iter() {
             for channel in device.channels.iter() {
-                let data: Vec<u16> = (0..100).map(|i| {
+                let data: Vec<Option<u16>> = (0..100).map(|i| {
                     let time = phase + i as f32 * 0.01;
                     generate_waveform(time, &channel.channel_type)
-                }).collect();
+                }).map(|x| Some(x))
+                    .collect();
                 delegate.new_data(channel.id.clone(), data);
             }
         }

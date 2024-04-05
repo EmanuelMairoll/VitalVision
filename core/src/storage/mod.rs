@@ -9,7 +9,7 @@ use ringbuffer::SliceableRingBuffer;
 pub struct Storage {
     devices: Vec<Device>,
     hist_size: usize,
-    data: HashMap<String, SliceableRingBuffer<u16>>,
+    data: HashMap<String, SliceableRingBuffer<Option<u16>>>,
     delegate: Arc<dyn VVCoreDelegate>,
 }
 
@@ -41,11 +41,11 @@ impl Storage {
     pub fn add_datapoint(&mut self, uuid: String, data_point: u16) {
         if !self.data.contains_key(&uuid) {
             self.data
-                .insert(uuid.clone(), SliceableRingBuffer::new(self.hist_size, 0));
+                .insert(uuid.clone(), SliceableRingBuffer::new(self.hist_size, None));
         }
 
         let data = self.data.get_mut(&uuid).unwrap();
-        data.write(data_point);
+        data.write(Some(data_point));
 
         let delegate1 = self.delegate.clone();
         let vec = data.get_slice().to_vec();

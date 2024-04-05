@@ -53,7 +53,7 @@ dictionary VVCoreConfig {
 interface VVCoreDelegate {
     void devices_changed(sequence<Device> devices);
 
-    void new_data(string channel_uuid, sequence<u16> data);
+    void new_data(string channel_uuid, sequence<u16?> data);
 };
 
 interface VVCore {

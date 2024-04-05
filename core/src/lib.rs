@@ -60,7 +60,7 @@ pub struct VVCoreConfig {
 
 pub trait VVCoreDelegate: Send + Sync {
     fn devices_changed(&self, devices: Vec<Device>);
-    fn new_data(&self, uuid: String, data: Vec<u16>);
+    fn new_data(&self, uuid: String, data: Vec<Option<u16>>);
 }
 
 pub struct VVCore {
@@ -74,6 +74,7 @@ pub struct VVCore {
 impl VVCore {
     pub fn new(config: VVCoreConfig, delegate: Arc<dyn VVCoreDelegate>) -> Self {
         let hist_size = config.hist_size_api.max(config.hist_size_analytics);
+
         let storage = storage::Storage::new(hist_size.try_into().unwrap(), delegate.clone());
         let arc_storage = Arc::new(RwLock::new(storage));
 
@@ -105,9 +106,23 @@ impl VVCore {
         self.rt.spawn(async move {
             ble.start_loop(mac_prefix).await.unwrap();
         });
+
+        self.rt.spawn({
+            let ble = self.ble.clone();
+            let interval = self.config.sync_interval_min as u64 * 60;
+            async move {
+                tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
+                ble.sync_time().await.unwrap();
+            }
+        });
+
     }
 
     pub fn sync_time(&self) {
+        if self.config.enable_mock_devices {
+            return;
+        }
+
         let ble = self.ble.clone();
         self.rt.spawn(async move {
             ble.sync_time().await.unwrap();

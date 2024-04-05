@@ -10,20 +10,20 @@ import Combine
 class VitalVisionCore {
 
     public let devicesSubject: PassthroughSubject<[Device], Never>  = PassthroughSubject<[Device], Never>()
-    public let dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16]), Never>  = PassthroughSubject<(channelUuid: String, data: [UInt16]), Never>()
+    public let dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16?]), Never>  = PassthroughSubject<(channelUuid: String, data: [UInt16?]), Never>()
      
     var appliedConfig: VvCoreConfig? = nil
     var vvcore: VvCore?
 
     // not using VitalVisionCore as callback directly to break ARC cycle
     class Delegate: VvCoreDelegate {
-        init(devicesSubject: PassthroughSubject<[Device], Never>, dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16]), Never>) {
+        init(devicesSubject: PassthroughSubject<[Device], Never>, dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16?]), Never>) {
             self.devicesSubject = devicesSubject
             self.dataSubject = dataSubject
         }
         
         public let devicesSubject: PassthroughSubject<[Device], Never>
-        public let dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16]), Never>
+        public let dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16?]), Never>
 
         public weak var wself: VitalVisionCore?
         
@@ -35,7 +35,7 @@ class VitalVisionCore {
             }
         }
         
-        func newData(channelUuid: String, data: [UInt16]) {
+        func newData(channelUuid: String, data: [UInt16?]) {
             Task {
                 await MainActor.run {
                     dataSubject.send((channelUuid: channelUuid, data: data))
