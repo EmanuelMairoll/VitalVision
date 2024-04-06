@@ -9,15 +9,20 @@ use ringbuffer::SliceableRingBuffer;
 pub struct Storage {
     devices: Vec<Device>,
     hist_size: usize,
+    delegate_hist_size: usize,
     data: HashMap<String, SliceableRingBuffer<Option<u16>>>,
     delegate: Arc<dyn VVCoreDelegate>,
 }
 
 impl Storage {
-    pub fn new(hist_size: usize, delegate: Arc<dyn VVCoreDelegate>) -> Self {
+    pub fn new(hist_size: usize, delegate_hist_size: usize, delegate: Arc<dyn VVCoreDelegate>) -> Self {
+        if hist_size < delegate_hist_size {
+            panic!("hist_size must be greater than or equal to delegate_hist_size");
+        }
         Self {
             devices: Vec::new(),
             hist_size,
+            delegate_hist_size,
             data: HashMap::new(),
             delegate,
         }
@@ -48,7 +53,7 @@ impl Storage {
         data.write(Some(data_point));
 
         let delegate1 = self.delegate.clone();
-        let vec = data.get_slice().to_vec();
+        let vec = data.get_slice_with_len(self.delegate_hist_size).to_vec();
         tokio::spawn(async move {
             delegate1.new_data(uuid, vec);
         });

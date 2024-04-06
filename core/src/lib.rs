@@ -75,7 +75,7 @@ impl VVCore {
     pub fn new(config: VVCoreConfig, delegate: Arc<dyn VVCoreDelegate>) -> Self {
         let hist_size = config.hist_size_api.max(config.hist_size_analytics);
 
-        let storage = storage::Storage::new(hist_size.try_into().unwrap(), delegate.clone());
+        let storage = storage::Storage::new(hist_size.try_into().unwrap(), config.hist_size_api.try_into().unwrap(), delegate.clone());
         let arc_storage = Arc::new(RwLock::new(storage));
 
         let ble = ble::Ble::new(arc_storage.clone());
@@ -95,8 +95,9 @@ impl VVCore {
     pub fn start_ble_loop(&self) {
         if self.config.enable_mock_devices {
             let delegate = self.delegate.clone();
+            let hist_size = self.config.hist_size_api;
             self.rt.spawn(async move {
-                ble::mock::mock_loop(delegate).await;
+                ble::mock::mock_loop(delegate, hist_size).await;
             });
             return;
         }

@@ -23,10 +23,14 @@ impl<T: Clone> SliceableRingBuffer<T> {
         self.write_position = (self.write_position + 1) % self.capacity;
     }
 
-    // Returns a slice of the last `self.capacity` elements written to the buffer.
     pub fn get_slice(&self) -> &[T] {
-        let start = self.write_position % self.capacity;
-        &self.buffer[start..start + self.capacity]
+        self.get_slice_with_len(self.capacity)
+    }
+    
+    // Returns a slice of the last `self.capacity` elements written to the buffer.
+    pub fn get_slice_with_len(&self, len: usize) -> &[T] {
+        let start = (self.write_position + (self.capacity - len)) % self.capacity;
+        &self.buffer[start..start + len]
     }
 }
 
@@ -57,5 +61,15 @@ mod tests {
         }
         // With capacity 5, we expect to have the last 5 elements written
         assert_eq!(rb.get_slice(), &[9, 10, 11, 12, 13]);
+    }
+    
+    #[test]
+    fn get_slice_with_len() {
+        let mut rb = SliceableRingBuffer::new(5, 0);
+        for i in 1..=13 {
+            rb.write(i);
+        }
+        // With capacity 5, we expect to have the last 5 elements written
+        assert_eq!(rb.get_slice_with_len(3), &[11, 12, 13]);
     }
 }
