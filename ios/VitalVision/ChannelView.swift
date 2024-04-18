@@ -73,6 +73,7 @@ struct ChannelDetailView: View {
 
         }
         .navigationTitle(channel.name)
+        .modifier(SaveDataModifier(channelData: $channelData, channelName: channel.name))
         .onReceive(core.dataSubject) { channelId, data in
             if channelId == channel.id {
                 self.channelData = data
