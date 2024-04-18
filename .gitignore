@@ -7,3 +7,5 @@ xcuserdata
 project.xcworkspace
 
 .DS_Store
+.zed/tasks.json
+ios/VitalVision.xcodeproj/xcshareddata/xcschemes/VitalVision.xcscheme
