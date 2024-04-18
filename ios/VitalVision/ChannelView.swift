@@ -48,7 +48,40 @@ struct ChannelDetailView: View {
     let channel: Channel
 
     @State var channelData: [UInt16?]? = nil
-        
+
+    // Computed property to get the maximum value of the last 50% of channelData
+    var channelDataMax: UInt16 {
+        let halfIndex = (channelData?.count ?? 0) / 2
+        return channelData?
+            .suffix(from: halfIndex)
+            .compactMap { $0 }
+            .max() ?? 0
+    }
+
+    // Computed property to get the minimum value of the last 50% of channelData
+    var channelDataMin: UInt16 {
+        let halfIndex = (channelData?.count ?? 0) / 2
+        return channelData?
+            .suffix(from: halfIndex)
+            .compactMap { $0 }
+            .min() ?? 0
+    }
+
+    // Computed property to calculate the range of the last 50% of channelData
+    var channelDataRange: UInt16 {
+        return channelDataMax - channelDataMin
+    }
+
+    // Computed property to calculate the domain based on the range
+    var channelDataDomain: some ScaleDomain {
+        let rangeTwoThirds = Int64(Double(channelDataRange) * (2.0 / 3.0))
+        let minVal: UInt16 = UInt16(max(0, Int64(channelDataMin) - rangeTwoThirds))
+        let maxVal: UInt16 = UInt16(min(Int64(channelDataMax) + rangeTwoThirds, Int64(UInt16.max)))
+        return [minVal, maxVal]
+    }
+
+    
+    
     var body: some View {
         VStack {
             Chart {
@@ -65,7 +98,8 @@ struct ChannelDetailView: View {
             }
             .frame(height: 300)
             .labelsHidden()
-            .chartYScale(domain: [channel.signalMin, channel.signalMax])
+            //.chartYScale(domain: [channel.signalMin, channel.signalMax])
+            .chartYScale(domain: channelDataDomain)
             Spacer()
             Text("\(channel.status)")
                 .font(.title)
@@ -80,4 +114,5 @@ struct ChannelDetailView: View {
             }
         }
     }
+
 }
