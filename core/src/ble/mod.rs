@@ -168,7 +168,7 @@ tokio::spawn(async move {
         println!("Matches prefix: {}", matches);
 
         if properties.local_name == Some("Dialog Peripheral".to_string())
-            && !device.is_connected().await?
+            && !device.is_connected().await? || properties.local_name == Some("SIP Vitaltracker".to_string()) && !device.is_connected().await?
         {
             device.connect().await?;
             println!("Connected to device: {:?}", properties.address);
@@ -241,7 +241,7 @@ tokio::spawn(async move {
         let characteristic_uuid_channel_mapping =
             Uuid::parse_str("0000180a-0000-1000-8000-00805f9b34fb")?;
         let mut battery = 0;
-        let mut channel_mapping = "CNT,PPG,PPG,ECG".to_string(); // TODO: Replace with actual channel mapping
+        let mut channel_mapping = "CNT,ECG,PPG,PPG,PPG".to_string(); // TODO: Replace with actual channel mapping
 
         for service in device.services() {
             for characteristic in &service.characteristics {
@@ -358,7 +358,7 @@ tokio::spawn(async move {
                 uuid if uuid == characteristic_uuid_data => {
                     println!("Received data notification: {:?}", value);
                     let data_points: Vec<(String, u16)> =
-                        Ble::parse_data_points(&value, channels.clone());
+                        Ble::parse_data_points(&value, channels.clone(), 3);
                     for data in data_points {
                         Ble::store_data_point(data.0.to_string(), data.1, storage.clone()).await;
                     }
@@ -389,34 +389,42 @@ tokio::spawn(async move {
         Ok(())
     }
 
+    // TODO: refactor this mess once we settle for a final data format
     fn parse_data_points(
         value: &[u8], // Count is u8, PPG is u16, ECG is u16
         channels: Vec<Channel>,
+        data_points_per_message: usize,
     ) -> Vec<(String, u16)> {
         let mut data_points = Vec::new();
         let mut value_index = 0;
 
-        for channel in channels {
-            let data_point = match channel.channel_type {
-                ChannelType::CNT => {
-                    let data = value[value_index] as u16;
-                    value_index += 1;
-                    (channel.id, data)
-                }
-                ChannelType::PPG => {
-                    let data = u16::from_be_bytes([value[value_index], value[value_index + 1]]);
-                    value_index += 2;
-                    (channel.id, data)
-                }
-                ChannelType::ECG => {
-                    let data = u16::from_be_bytes([value[value_index], value[value_index + 1]]);
-                    value_index += 2;
-                    (channel.id, data)
-                }
-            };
-            data_points.push(data_point);
+        for _ in 0..data_points_per_message {
+            for channel in channels.clone() {
+                let data_point = match channel.channel_type {
+                    ChannelType::CNT => {
+                        if value_index >= 1 {
+                            continue;
+                        }
+                        
+                        let data = value[value_index] as u16;
+                        value_index += 1;
+                        (channel.id, data)
+                    }
+                    ChannelType::PPG => {
+                        let data = u16::from_le_bytes([value[value_index], value[value_index + 1]]);
+                        value_index += 2;
+                        (channel.id, data)
+                    }
+                    ChannelType::ECG => {
+                        let data = u16::from_le_bytes([value[value_index], value[value_index + 1]]);
+                        value_index += 2;
+                        (channel.id, data)
+                    }
+                };
+                data_points.push(data_point);
+            }   
         }
-
+        
         data_points
     }
 
