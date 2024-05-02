@@ -14,21 +14,40 @@ struct ContentView: View {
     
     @State var core:VitalVisionCore = VitalVisionCore()
     @State var devices: [Device]? = nil
-    
+    @State var showSettings: Bool = false
+
 #if os(macOS)
     @State var selectedDevice: Device?
-    
+
     var body: some View {
         NavigationSplitView {
-            if let devices = devices {
-                List(devices, id: \.mac, selection: $selectedDevice) { device in
-                    DevicePreviewView(core: core, device: device)
-                    
+            VStack {
+                if let devices = devices {
+                    List(devices, id: \.mac, selection: $selectedDevice) { device in
+                        DevicePreviewView(core: core, device: device)
+                        
+                    }
+                    .navigationTitle("BLE Devices")
+                } else {
+                    Text("Loading...")
+                    ProgressView()
                 }
-                .navigationTitle("BLE Devices")
-            } else {
-                Text("Loading...")
-                ProgressView()
+            }
+            .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Label("Settings", systemImage: "gearshape.fill")
+                    }
+                }
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        core.syncTime()
+                    } label: {
+                        Image(systemName: "clock.arrow.2.circlepath")
+                    }
+                }
             }
         } detail: {
             if let device = selectedDevice {
@@ -43,9 +62,21 @@ struct ContentView: View {
         .onReceive(core.devicesSubject) { devices in
             self.devices = devices
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(
+                histSizeApi: $histSizeApi,
+                histSizeAnalytics: $histSizeAnalytics,
+                maxInitialRttMs: $maxInitialRttMs,
+                syncIntervalMin: $syncIntervalMin,
+                bleMacPrefix: $bleMacPrefix,
+                maxSignalResolutionBit: $maxSignalResolutionBit,
+                maxSignalSamplingRateHz: $maxSignalSamplingRateHz,
+                enableMockDevices: $enableMockDevices
+            )
+        }
+
     }
 #else
-    @State var showSettings: Bool = false
     
     var body: some View {
         NavigationStack {

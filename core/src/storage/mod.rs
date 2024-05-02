@@ -1,6 +1,7 @@
 use super::*;
 
 use std::collections::HashMap;
+use ndarray::Array1;
 
 mod ringbuffer;
 
@@ -19,6 +20,7 @@ impl Storage {
         if hist_size < delegate_hist_size {
             panic!("hist_size must be greater than or equal to delegate_hist_size");
         }
+        
         Self {
             devices: Vec::new(),
             hist_size,
@@ -54,8 +56,15 @@ impl Storage {
 
         let delegate1 = self.delegate.clone();
         let vec = data.get_slice_with_len(self.delegate_hist_size).to_vec();
+        let copy = vec.clone();
+        
+        let array = Array1::from_vec(vec.iter().filter(|x| x.is_some()).map(|x| x.unwrap()).collect());
         tokio::spawn(async move {
             delegate1.new_data(uuid, vec);
         });
     }
+    
+    pub fn get_data_for_all_channels(&self) -> HashMap<String, Vec<Option<u16>>> {
+        self.data.iter().map(|(k, v)| (k.clone(), v.get_slice_with_len(self.delegate_hist_size).to_vec())).collect()
+    } 
 }

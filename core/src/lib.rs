@@ -1,10 +1,13 @@
 use async_std::sync::{Arc, RwLock};
+use ndarray::Array1;
 use rand::prelude::*;
+use crate::analysis::ppg;
 
 uniffi::include_scaffolding!("vvcore");
 
 pub mod ble;
 pub mod storage;
+mod analysis;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Device {
@@ -116,7 +119,56 @@ impl VVCore {
                 ble.sync_time().await.unwrap();
             }
         });
+    }
 
+    pub fn start_analytics_loop(&self) {
+        let storage = self.storage.clone();
+        let delegate = self.delegate.clone();
+
+        let analysis = ppg::Analysis {
+            params: ppg::Parameters {
+                sampling_frequency: 30.0,
+                filter_cutoff_low: 1.0,
+                filter_cutoff_high: 10.0,
+                filter_order: 4,
+                envelope_range: 23, // 0.5 seconds
+                amplitude_min: 10,
+                amplitude_max: 2000,
+            }
+        };
+        self.rt.spawn(async move {
+            loop {
+                let uuid_to_data = storage.read().await.get_data_for_all_channels();
+                let ok = uuid_to_data.iter().filter_map(|(uuid, data)| {
+                    let data = data.iter().filter_map(|x| *x).collect::<Array1<u16>>();
+
+                    if uuid != "00:00:00:00:00:00-0" && uuid != "00:00:00:00:00:00-1"{
+                        let result = analysis.analyze(data);
+
+                        println!("{}: {:?}", uuid, result.signal_quality);
+
+                        let ok = result.signal_quality.iter().map(|x| if *x == 1 { 1 } else { 0 }).sum::<u16>() as f64 / result.signal_quality.len() as f64;
+                        
+                        return Some((uuid, ok));
+                    }
+                    
+                    None
+                }).collect::<Vec<_>>();
+                
+                storage.write().await.modify_devices(|devices| {
+                    for device in devices.iter_mut() {
+                        for channel in device.channels.iter_mut() {
+                            let ok = ok.iter().find(|(x, _)| x == &&channel.id).map(|(_, x)| *x).unwrap_or(0.0);
+                            channel.status = if ok > 0.75 { ChannelStatus::Ok } else { ChannelStatus::SignalIssue };
+                        }
+                    }
+                });
+
+                println!("Sending devices");
+                
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            }
+        });
     }
 
     pub fn sync_time(&self) {

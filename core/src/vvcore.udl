@@ -61,5 +61,7 @@ interface VVCore {
 
     void start_ble_loop();
 
+    void start_analytics_loop();
+
     void sync_time();
 };

@@ -100,6 +100,7 @@ struct ChannelDetailView: View {
             .labelsHidden()
             //.chartYScale(domain: [channel.signalMin, channel.signalMax])
             .chartYScale(domain: channelDataDomain)
+            .clipped()
             Spacer()
             Text("\(channel.status)")
                 .font(.title)

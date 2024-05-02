@@ -82,10 +82,12 @@ impl Ble {
         while let Some(event) = events.next().await {
             match event {
                 CentralEvent::DeviceDiscovered(id) => {
+                    println!("Device discovered: {:?}", id);
                     let device = central.clone().peripheral(&id).await?;
                     Ble::handle_discovered_device(&device, &mac_prefix, storage.clone()).await?;
                 }
                 CentralEvent::DeviceDisconnected(id) => {
+                    println!("Device disconnected: {:?}", id);
                     let device = central.clone().peripheral(&id).await?;
                     if let Ok(props) = device.properties().await {
                         if let Some(properties) = props {
@@ -94,7 +96,9 @@ impl Ble {
                         }
                     }
                 }
-                _ => {}
+                _ => {
+                    println!("Unhandled event: {:?}", event);
+                }
             }
         }
         Ok(())
@@ -105,9 +109,11 @@ impl Ble {
         while let Ok(notification) = rx.recv().await {
             if let BleNotification::SyncTime = notification {
                 for p in central.peripherals().await.unwrap() {
+                    println!("Checking device: {:?}", p.properties().await.unwrap().unwrap().address);
                     if !p.is_connected().await.unwrap() {
                         continue;
                     }
+                    println!("Device is connected: {:?}", p.properties().await.unwrap().unwrap().address);
 
                     if let Ok(props) = p.properties().await {
                         if let Some(properties) = props {
@@ -356,7 +362,7 @@ tokio::spawn(async move {
                     }
                 }
                 uuid if uuid == characteristic_uuid_data => {
-                    println!("Received data notification: {:?}", value);
+                    //println!("Received data notification: {:?}", value);
                     let data_points: Vec<(String, u16)> =
                         Ble::parse_data_points(&value, channels.clone(), 3);
                     for data in data_points {

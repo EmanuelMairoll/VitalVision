@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct SaveDataModifier: ViewModifier {
     @Binding var channelData: [UInt16?]?
@@ -7,46 +8,67 @@ struct SaveDataModifier: ViewModifier {
     @State private var showingSaveDialog = false
     @State private var filename: String = ""
     @State private var snapshot: [UInt16?] = []
+
+    @Environment(\.openURL) var openURL
     
     func body(content: Content) -> some View {
         content
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button(action: {
                         if let channelData = channelData {
                             self.snapshot = channelData
                             self.filename = "\(channelName) \(DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .short))"
-                            self.showingSaveDialog = true
+                            showSaveDialog()
                         }
                     }) {
-                        Image(systemName: "square.and.arrow.down")
+                        HStack {
+                            Image(systemName: "square.and.arrow.down")
+                            Text(channelName)
+                        }
                     }
                 }
             }
-            .alert("Save Data", isPresented: $showingSaveDialog) {
-                TextField("Enter filename", text: $filename)
-                Button("Save") {
-                    self.saveData(name: self.filename)
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Enter a name for the data file.")
-            }
     }
 
-    private func saveData(name: String) {
-        let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let fileURL = documentDirectory.appendingPathComponent("\(name).bin")
+    private func showSaveDialog() {
+        #if os(macOS)
+        let savePanel = NSSavePanel()
+        savePanel.allowedFileTypes = ["bin"]
+        savePanel.nameFieldStringValue = filename
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                saveData(at: url)
+            }
+        }
+        #else
+        self.showingSaveDialog = true
+        #endif
+    }
 
+    private func saveData(at url: URL) {
         do {
             let data = snapshot.compactMap { $0 }.withUnsafeBytes {
                 Data($0)
             }
-            try data.write(to: fileURL)
-            print("Data saved to \(fileURL.path)")
+            try data.write(to: url)
+            print("Data saved to \(url.path)")
         } catch {
             print("Error saving data: \(error)")
         }
     }
 
+    // iOS part for modal alert dialog
+    private var alert: Alert {
+        Alert(
+            title: Text("Save Data"),
+            message: Text("Enter a name for the data file."),
+            primaryButton: .default(Text("Save"), action: {
+                let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                let fileURL = documentDirectory.appendingPathComponent("\(self.filename).bin")
+                saveData(at: fileURL)
+            }),
+            secondaryButton: .cancel()
+        )
+    }
 }

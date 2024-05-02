@@ -40,9 +40,10 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            /*
             .navigationBarItems(trailing: Button("Done") {
                 dismiss()
-            })
+            })*/
         }
     }
 }

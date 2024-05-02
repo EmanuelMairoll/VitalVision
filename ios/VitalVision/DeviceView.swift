@@ -28,7 +28,7 @@ struct DevicePreviewView: View {
                 Text("\(device.driftUs / 1000)ms")
                     .font(.caption)
                 BatteryIndicator(level: device.battery)
-                StatusIndicator(isOk: true /*device.isConnected*/)
+                StatusIndicator(isOk: device.connected)
             }
         }
         .id(device.mac)
@@ -38,7 +38,7 @@ struct DevicePreviewView: View {
 struct DeviceDetailView: View {
     let core: VitalVisionCore
     let device: Device
-        
+    
     var body: some View {
         List {
             Section(header: Text("Device Info")) {
@@ -50,9 +50,16 @@ struct DeviceDetailView: View {
             }
             Section(header: Text("Channels")) {
                 ForEach(device.channels, id: \.id) { channel in
+                    #if os(macOS)
+                    Text(channel.name)
+                        .font(.title)
+                    ChannelDetailView(core: core, channel: channel)
+                    Divider()
+                    #else
                     NavigationLink(destination: ChannelDetailView(core: core, channel: channel)) {
                         ChannelPreviewView(channel: channel)
                     }
+                    #endif
                 }
             }
         }
