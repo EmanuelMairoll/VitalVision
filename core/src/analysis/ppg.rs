@@ -1,8 +1,6 @@
-use ndarray::{Array1, ArrayView1, s, Zip};
+use std::error::Error;
+use ndarray::{Array1, ArrayView1, s};
 use crate::analysis::filter::{bandpass_filter, lower_envelope_est};
-use crate::analysis::plotters::plot_signal_f64;
-
-// Assume additional necessary imports for DSP functionality
 
 pub struct Parameters {
     pub sampling_frequency: f64,
@@ -56,29 +54,35 @@ impl<'a> Pulse<'a> {
     }
 }
 
-pub(crate) struct Analysis {
-    pub(crate) params: Parameters,
+pub struct Analysis {
+    pub params: Parameters,
+
+    pub plotter: Option<Box<dyn Fn(
+        ArrayView1<f64>,
+        &str,
+        &str,
+        Option<Vec<usize>>
+    ) -> Result<(), Box<dyn Error>> + Send + Sync>>,
 }
 
 impl Analysis {
-    pub fn analyze(&self, signal: Array1<u16>) -> Results {
-        let signal = signal.map(|&x| -(x as f64));
-        let stripped = signal.view();
-        //plot_signal_f64(stripped, "signal_raw.png", None);
+    pub fn analyze(&self, signal: Array1<f64>) -> Results {
+        self.plot_signal(signal.view(), "Raw Signal", "signal_raw.png", None).unwrap();
         
-        let mean = stripped.mean().unwrap();
-        let normalized = stripped.mapv(|a| a - mean);
+        let mean = signal.mean().unwrap();
+        let normalized = signal.mapv(|a| a - mean);
         
-        //plot_signal_f64(normalized.view(), "signal_normalized.png", None);
+        self.plot_signal(normalized.view(), "Normalized Signal", "signal_normalized.png", None).unwrap();
         
         let filtered = self.filter(normalized.view());
-        //plot_signal_f64(filtered.view(), "signal_filt.png", None);
-
+        
+        self.plot_signal(filtered.view(), "Filtered Signal", "signal_filt.png", None).unwrap();
+        
         let lower_env = self.lower_envelope(&filtered);
         let pulses = self.find_pulses(filtered.view(), &lower_env);
         
         let points_trough = pulses.iter().map(|p| p.start_trough_index).collect::<Vec<_>>();
-        //plot_signal_f64(filtered.view(), "signal_pulses.png", Some(points_trough));
+        self.plot_signal(filtered.view(), "Pulses", "signal_pulses.png", Some(points_trough)).unwrap();
         
         if pulses.len() < 3 {
             return Results {
@@ -100,7 +104,7 @@ impl Analysis {
             }
         }).collect::<Vec<_>>();
 
-        //plot_signal_f64(filtered.view(), "signal_valid.png", Some(valid_peaks));
+        self.plot_signal(filtered.view(), "Peaks of valid Pulses", "signal_valid.png", Some(valid_peaks)).unwrap();
 
         
         println!("------------------------------------");
@@ -134,7 +138,10 @@ impl Analysis {
     }
 
     fn filter(&self, data: ArrayView1<f64>) -> Array1<f64> {
-        bandpass_filter(data, self.params.filter_cutoff_low, self.params.filter_cutoff_high, self.params.sampling_frequency)
+        let (low, high) = (self.params.filter_cutoff_low, self.params.filter_cutoff_high);
+        let order = self.params.filter_order;
+        let fs = self.params.sampling_frequency;
+        bandpass_filter(data, low, high, order, fs)
     }
 
     fn lower_envelope(&self, data: &Array1<f64>) -> Array1<f64> {
@@ -171,5 +178,13 @@ impl Analysis {
 
             (amplitude_valid, trough_depth_valid, pulse_width_valid)
         }).collect()
+    }
+    
+    fn plot_signal(&self, signal: ArrayView1<f64>, title: &str, filename: &str, points: Option<Vec<usize>>) -> Result<(), Box<dyn Error>> {
+        if let Some(f) = &self.plotter {
+            f(signal, title, filename, points)
+        } else {
+            Ok(())
+        }
     }
 }

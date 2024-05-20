@@ -1,82 +1,175 @@
+use std::any::Any;
 use super::*;
 use crate::storage::Storage;
-use async_std::sync::RwLock;
 use ble_date_converter::*;
 use btleplug::api::{
     Central, CentralEvent, Manager as _, Peripheral, PeripheralProperties,
     ScanFilter, ValueNotification, WriteType,
 };
-use btleplug::platform::{Adapter, Manager};
+use btleplug::platform::{Adapter, Manager, PeripheralId};
 use chrono::Utc;
-use futures::stream::StreamExt;
+use futures::stream::{StreamExt, select};
 use std::error::Error;
+use std::pin::Pin;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::mpsc::Sender;
+use tokio::sync::RwLock;
+use tokio_stream::Stream;
 use uuid::Uuid;
+use tokio_stream::wrappers::ReceiverStream;
 
 mod ble_date_converter;
 pub mod mock;
 
 pub struct Ble {
     storage: Arc<RwLock<Storage>>,
-    notification_center: tokio::sync::broadcast::Sender<BleNotification>,
 }
 
 #[derive(Clone, Debug)]
-enum BleNotification {
+pub enum BleEvent {
     SyncTime,
+    ValueNotification(ValueNotification, String, Vec<Channel>), // TODO: move me to internal
 }
+
+#[derive(Clone, Debug)]
+enum InternalBleEvent {
+    CentralEvent(CentralEvent),
+    //ValueNotification(ValueNotification, String, Vec<Channel>),
+    External(BleEvent)
+}
+
 
 impl Ble {
     pub fn new(storage: Arc<RwLock<Storage>>) -> Self {
-        let (notification_center, _) = tokio::sync::broadcast::channel(10);
         Self {
             storage,
-            notification_center,
         }
     }
 
-    pub async fn start_loop(&self, mac_prefix: String) -> Result<(), Box<dyn Error>> {
+    pub async fn start_loop(&self, mac_prefix: String) -> Result<Sender<BleEvent>, Box<dyn Error>> {
         let manager = Manager::new().await?;
         let adapters = manager.adapters().await?;
         let central = adapters.into_iter().next().ok_or("No adapter found")?;
-        let arc_central = Arc::new(central);
 
-        arc_central
+        central
             .start_scan(ScanFilter { services: vec![] })
             .await?;
         println!("Scanning for devices...");
 
+        let event_stream = central.events().await?.map(InternalBleEvent::CentralEvent);
 
-        let central_event_handle = tokio::spawn ({
-            let central = arc_central.clone();
-            let storage = self.storage.clone();
-            async move {
-                Ble::run_central_event_loop(central, mac_prefix, storage).await.unwrap();
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
+        let notification_stream = ReceiverStream::new(rx).map(InternalBleEvent::External);
+        
+        let mut combined_stream = select(event_stream, notification_stream);
+
+        let storage = self.storage.clone();
+        let tx_clone = tx.clone();
+        
+        tokio::spawn(async move {
+            while let Some(event) = combined_stream.next().await {
+                match event {
+                    InternalBleEvent::CentralEvent(CentralEvent::DeviceDiscovered(id)) => {
+                        println!("Device discovered: {:?}", id);
+                        let device = central.peripheral(&id).await.unwrap();
+                        Ble::handle_discovered_device(&device, &mac_prefix, storage.clone(), tx_clone.clone()).await.unwrap();
+                    }
+                    InternalBleEvent::CentralEvent(CentralEvent::DeviceDisconnected(id)) => {
+                        println!("Device disconnected: {:?}", id);
+                        let device = central.peripheral(&id).await.unwrap();
+                        if let Ok(props) = device.properties().await {
+                            if let Some(properties) = props {
+                                Ble::mark_device_as_disconnected(&properties.address.to_string(), storage.clone())
+                                    .await.unwrap();
+                            }
+                        }
+                    }
+                    InternalBleEvent::External(BleEvent::SyncTime) => {
+                        for p in central.peripherals().await.unwrap() {
+                            println!("Checking device: {:?}", p.properties().await.unwrap().unwrap().address);
+                            if !p.is_connected().await.unwrap() {
+                                continue;
+                            }
+                            println!("Device is connected: {:?}", p.properties().await.unwrap().unwrap().address);
+
+                            if let Ok(props) = p.properties().await {
+                                if let Some(properties) = props {
+                                    let mac = Ble::get_mac_from_properties(&properties);
+                                    let rtt = Ble::sync_time_for_device(&p).await.unwrap();
+
+                                    storage.write().await.modify_devices(|devices| {
+                                        devices
+                                            .iter_mut()
+                                            .find(|device| device.mac == mac)
+                                            .map(|device| device.drift_us = rtt);
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    InternalBleEvent::External(BleEvent::ValueNotification(notification, device_id, channels)) => {
+                    //InternalBleEvent::ValueNotification(notification, device_id, channels) => {
+                        let ValueNotification { uuid, value, .. } = notification;
+                        match uuid {
+                            uuid if uuid == Uuid::parse_str("00002a19-0000-1000-8000-00805f9b34fb").unwrap() => {
+                                if let Some(&battery_level) = value.first() {
+                                    println!("Battery level update: {}%", battery_level);
+                                    Ble::update_battery_status(device_id, battery_level, storage.clone())
+                                        .await.unwrap();
+                                }
+                            }
+                            uuid if uuid == Uuid::parse_str("dcf31a27-a904-f4a3-a24e-5ae42f8617b6").unwrap() => {
+                                println!("Received data notification, HEX DUMP: {:?}", value.iter().map(|x| format!("{:02x} ", x)).collect::<String>());
+                                // TODO: Refactor this mess
+                                
+                                let mut data_points: Vec<(String, u16)> =
+                                    Ble::parse_data_points(&value, channels.clone(), 3);
+                                let data_points_grouped = data_points.drain(..).fold(std::collections::HashMap::new(), |mut acc, x| {
+                                    acc.entry(x.0).or_insert_with(Vec::new).push(x.1);
+                                    acc
+                                });
+                                for (uuid, data) in data_points_grouped {
+                                    Ble::store_data_points(uuid, data, storage.clone()).await;
+                                }
+                            }
+                            _ => println!(
+                                "Received notification from an unknown characteristic: {:?}",
+                                uuid
+                            ),
+                        }
+                    }
+                    _ => {}
+                }
             }
         });
+        
+        Ok(tx)
 
-        let notification_handle = tokio::spawn({
-            let central = arc_central.clone();
-            let notification_center = self.notification_center.subscribe();
-            let storage = self.storage.clone();
-            async move {
-                Ble::run_notification_loop(central, notification_center, storage).await.unwrap();
-            }
-        });
+        /*
+    let central_event_handle = tokio::spawn ({
+        let central = arc_central.clone();
+        let storage = self.storage.clone();
+        async move {
+            Ble::run_central_event_loop(central, mac_prefix, storage).await.unwrap();
+        }
+    });
 
-        let handles = vec![central_event_handle, notification_handle];
-        futures::future::join_all(handles).await;
+    let notification_handle = tokio::spawn({
+        let central = arc_central.clone();
+        let notification_center = self.notification_center.subscribe();
+        let storage = self.storage.clone();
+        async move {
+            Ble::run_notification_loop(central, notification_center, storage).await.unwrap();
+        }
+    });
 
-        Ok(())
+    let handles = vec![central_event_handle, notification_handle];
+    futures::future::join_all(handles).await;
+*/
+
     }
-
-    pub async fn sync_time(&self) -> Result<(), Box<dyn Error>> {
-        self.notification_center.send(BleNotification::SyncTime)?;
-        Ok(())
-    }
-
+    
+    /*
     async fn run_central_event_loop(central: Arc<impl Central>, mac_prefix: String, storage: Arc<RwLock<Storage>>) -> Result<(), Box<dyn Error>> {
         let mut events = central.events().await?;
         while let Some(event) = events.next().await {
@@ -97,15 +190,16 @@ impl Ble {
                     }
                 }
                 _ => {
-                    println!("Unhandled event: {:?}", event);
+                    //println!("Unhandled event: {:?}", event);
                 }
             }
         }
         Ok(())
     }
-
+    */
+    /*
     #[allow(irrefutable_let_patterns)]
-    async fn run_notification_loop(central: Arc<impl Central>, mut rx: Receiver<BleNotification>,storage: Arc<RwLock<Storage>>) -> Result<(), Box<dyn Error>> {
+    async fn run_notification_loop(central: Arc<impl Central>, mut rx: Receiver<BleNotification>, storage: Arc<RwLock<Storage>>) -> Result<(), Box<dyn Error>> {
         while let Ok(notification) = rx.recv().await {
             if let BleNotification::SyncTime = notification {
                 for p in central.peripherals().await.unwrap() {
@@ -129,12 +223,10 @@ impl Ble {
                         }
                     }
                 }
-
             }
         }
         Ok(())
 
-        /*
 tokio::spawn(async move {
     while let Ok(notification) = rx.recv().await {
         if let BleNotification::SyncTime = notification {
@@ -152,14 +244,14 @@ tokio::spawn(async move {
             });
         }
     }
-});*/
-
-    }
+});
+    }*/
 
     async fn handle_discovered_device(
         device: &impl Peripheral,
         mac_prefix: &str,
         storage: Arc<RwLock<Storage>>,
+        sender: Sender<BleEvent>,
     ) -> Result<(), Box<dyn Error>> {
         let properties = match device.properties().await? {
             Some(properties) => properties,
@@ -169,25 +261,35 @@ tokio::spawn(async move {
             "Found device: {:?}, {:?}",
             properties.local_name, properties.address
         );
-
+        
         let matches = properties.address.to_string().starts_with(mac_prefix);
         println!("Matches prefix: {}", matches);
 
         if properties.local_name == Some("Dialog Peripheral".to_string())
             && !device.is_connected().await? || properties.local_name == Some("SIP Vitaltracker".to_string()) && !device.is_connected().await?
         {
+            // print all properties
+            println!("Properties before connecting: {:?}", properties);
+            
+            
             device.connect().await?;
             println!("Connected to device: {:?}", properties.address);
             device.discover_services().await?;
 
             Ble::subscribe_to_data(device).await?;
+            println!("Subscribed to data");
             let drift = Ble::sync_time_for_device(device).await?;
+            println!("Synced time for device");
             let (battery, channel_mapping) =
                 Ble::get_battery_and_channel_mapping(device).await?;
+            println!("got Battery an Channel Mapping");
             let channels = Ble::create_storage_entry(properties.clone(), battery, drift, channel_mapping.clone(), storage.clone())
                 .await?;
-            Ble::handle_notifications(device, properties, channels, storage)
-                .await?;
+            println!("created Storage Entry");
+            
+            Ble::handle_notifications(device, properties, channels, storage, sender).await?;
+            
+            println!("Setup notification handling");
         }
         Ok(())
     }
@@ -200,16 +302,21 @@ tokio::spawn(async move {
         let time_service_uuid = Uuid::parse_str("00001806-0000-1000-8000-00805f9b34fb")?;
         let time_characteristic_uuid = Uuid::parse_str("00002a2d-0000-1000-8000-00805f9b34fb")?;
 
+        return Ok(42);
+        
         for service in device.services() {
             if service.uuid == time_service_uuid {
                 for characteristic in &service.characteristics {
                     if characteristic.uuid == time_characteristic_uuid {
                         let time_to_set = Utc::now();
                         let data_to_set = time_to_ble_data(time_to_set);
+                        println!("Writing wo response");
+                        println!("HEX: {:?}", data_to_set.iter().map(|x| format!("{:02X}", x)).collect::<String>());
                         device
                             .write(characteristic, &data_to_set, WriteType::WithoutResponse)
                             .await?;
-
+                        print!("done Writing");
+                        
                         let data_read = device.read(characteristic).await?;
                         let time_to_compare = Utc::now();
 
@@ -253,6 +360,7 @@ tokio::spawn(async move {
             for characteristic in &service.characteristics {
                 if characteristic.uuid == characteristic_uuid_battery {
                     let value = device.read(&characteristic).await?;
+                    println!("Battery level: {:?}", value);
                     if let Some(&battery_level) = value.first() {
                         battery = battery_level;
                     }
@@ -342,39 +450,52 @@ tokio::spawn(async move {
         properties: PeripheralProperties,
         channels: Vec<Channel>,
         storage: Arc<RwLock<Storage>>,
+        sender: Sender<BleEvent>,
     ) -> Result<(), Box<dyn Error>> {
+
         let device_mac = properties.address.to_string();
+        let mut notification_stream: Pin<Box<dyn Stream<Item=ValueNotification>+Send>> = device.notifications().await?;
+        
+        tokio::spawn(async move {
+            while let Some(notification) = notification_stream.next().await {
+                sender.send(BleEvent::ValueNotification(notification, device_mac.clone(), channels.clone())).await.unwrap();
+            }
+        });
+        
 
         let characteristic_uuid_battery = Uuid::parse_str("00002a19-0000-1000-8000-00805f9b34fb")?; // Example battery level UUID
         let characteristic_uuid_data = Uuid::parse_str("dcf31a27-a904-f4a3-a24e-5ae42f8617b6")?; // Custom data characteristic 1
 
-        let mut notification_stream = device.notifications().await?;
-        println!("Waiting for notifications...");
+/*
+        let mut notification_stream: Pin<Box<dyn Stream<Item=ValueNotification>+Send>> = device.notifications().await?;
 
-        while let Some(notification) = notification_stream.next().await {
-            let ValueNotification { uuid, value, .. } = notification;
-            match uuid {
-                uuid if uuid == characteristic_uuid_battery => {
-                    if let Some(&battery_level) = value.first() {
-                        println!("Battery level update: {}%", battery_level);
-                        Ble::update_battery_status(device_mac.clone(), battery_level, storage.clone())
-                            .await?;
+        tokio::spawn(async move {
+            while let Some(notification) = notification_stream.next().await {
+                let ValueNotification { uuid, value, .. } = notification;
+                match uuid {
+                    uuid if uuid == characteristic_uuid_battery => {
+                        if let Some(&battery_level) = value.first() {
+                            println!("Battery level update: {}%", battery_level);
+                            Ble::update_battery_status(device_mac.clone(), battery_level, storage.clone())
+                                .await.unwrap();
+                        }
                     }
-                }
-                uuid if uuid == characteristic_uuid_data => {
-                    //println!("Received data notification: {:?}", value);
-                    let data_points: Vec<(String, u16)> =
-                        Ble::parse_data_points(&value, channels.clone(), 3);
-                    for data in data_points {
-                        Ble::store_data_point(data.0.to_string(), data.1, storage.clone()).await;
+                    uuid if uuid == characteristic_uuid_data => {
+                        //println!("Received data notification: {:?}", value);
+                        let data_points: Vec<(String, u16)> =
+                            Ble::parse_data_points(&value, channels.clone(), 3);
+                        for data in data_points {
+                            Ble::store_data_point(data.0.to_string(), data.1, storage.clone()).await;
+                        }
                     }
+                    _ => println!(
+                        "Received notification from an unknown characteristic: {:?}",
+                        uuid
+                    ),
                 }
-                _ => println!(
-                    "Received notification from an unknown characteristic: {:?}",
-                    uuid
-                ),
             }
-        }
+        });
+*/
         Ok(())
     }
 
@@ -397,7 +518,7 @@ tokio::spawn(async move {
 
     // TODO: refactor this mess once we settle for a final data format
     fn parse_data_points(
-        value: &[u8], // Count is u8, PPG is u16, ECG is u16
+        value: &[u8], // Count is u8, PPG is u16, ECG is i16
         channels: Vec<Channel>,
         data_points_per_message: usize,
     ) -> Vec<(String, u16)> {
@@ -411,7 +532,7 @@ tokio::spawn(async move {
                         if value_index >= 1 {
                             continue;
                         }
-                        
+
                         let data = value[value_index] as u16;
                         value_index += 1;
                         (channel.id, data)
@@ -422,21 +543,22 @@ tokio::spawn(async move {
                         (channel.id, data)
                     }
                     ChannelType::ECG => {
-                        let data = u16::from_le_bytes([value[value_index], value[value_index + 1]]);
+                        let data_i32 = i16::from_le_bytes([value[value_index], value[value_index + 1]]) as i32;
+                        let data = (data_i32 + i16::MAX as i32 ) as u16;
                         value_index += 2;
                         (channel.id, data)
                     }
                 };
                 data_points.push(data_point);
-            }   
+            }
         }
-        
+
         data_points
     }
 
-    async fn store_data_point(channel_uuid: String, data_point: u16, storage: Arc<RwLock<Storage>>) {
+    async fn store_data_points(channel_uuid: String, data_points: Vec<u16>, storage: Arc<RwLock<Storage>>) {
         let mut storage = storage.write().await;
-        storage.add_datapoint(channel_uuid, data_point);
+        storage.add_datapoint(channel_uuid, data_points);
         drop(storage);
     }
 

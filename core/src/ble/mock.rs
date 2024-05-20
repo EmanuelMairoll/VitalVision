@@ -2,6 +2,7 @@ use crate::*;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use std::f32::consts::PI;
+use rand::prelude::*;
 
 pub async fn mock_loop(delegate: Arc<dyn VVCoreDelegate>, hist_size: u32) {
     let mut phase = 0.0;

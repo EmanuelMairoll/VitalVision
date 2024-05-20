@@ -1,7 +1,9 @@
+use ndarray::ArrayView1;
+
 pub mod ppg;
 mod filter;
 mod tests;
-mod plotters;
+mod ecg;
 
 pub struct Analysis {
     config: AnalysisConfig,
@@ -26,3 +28,4 @@ impl Analysis {
         }
     }
 }
+

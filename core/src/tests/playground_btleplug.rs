@@ -1,4 +1,4 @@
-//#[cfg(test)]
+pub mod plotters;//#[cfg(test)]
 mod tests {
     use btleplug::api::{Central, Manager as _, Peripheral, ValueNotification};
     use btleplug::platform::Manager;

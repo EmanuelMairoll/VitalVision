@@ -2,25 +2,7 @@ use biquad::{Biquad, Coefficients, DirectForm1, Q_BUTTERWORTH_F64, ToHertz, Type
 use ndarray::{Array1, ArrayView1, s};
 use ndarray_stats::QuantileExt;
 
-pub fn butter_bandpass_filter(data: ArrayView1<f64>) -> Array1<f64> {
-
-    // These coefficients are for a butter bandpass filter with the parameters:
-    // lowcut = 1.0, highcut = 10.0, fs = 30.0, order = 1
-
-    let coeff = Coefficients {
-        b0: 0.57919222,
-        b1: 0.0,
-        b2: -0.57919222,
-        a1: -0.58238257,
-        a2: -0.15838444,
-    };
-
-    let filter = forward_backward_filter(data, &coeff);
-    return filter;
-
-}
-
-pub fn bandpass_filter(data: ArrayView1<f64>, lowcut: f64, highcut: f64, fs: f64) -> Array1<f64> {
+pub fn bandpass_filter(data: ArrayView1<f64>, lowcut: f64, highcut: f64, order: usize, fs: f64) -> Array1<f64> {
 
     let low_coeff = Coefficients::<f64>::from_params(
         Type::LowPass,
@@ -36,14 +18,36 @@ pub fn bandpass_filter(data: ArrayView1<f64>, lowcut: f64, highcut: f64, fs: f64
         Q_BUTTERWORTH_F64
     ).unwrap();
 
-    let low_forward = forward_filter(data, &low_coeff);
-    let band_forward = forward_filter(low_forward.view(), &high_coeff);
-    let low_full = backward_filter(band_forward.view(), &low_coeff);
-    let band_full = backward_filter(low_full.view(), &high_coeff);
+    let mut band_full = data.to_owned();
+    
+    for i in 0..order {
+        let low_forward = forward_filter(data, &low_coeff);
+        let band_forward = forward_filter(low_forward.view(), &high_coeff);
+        let low_full = backward_filter(band_forward.view(), &low_coeff);
+        band_full = backward_filter(low_full.view(), &high_coeff);
+    }
     
     return band_full;
 }
 
+
+pub fn highpass_filter(data: ArrayView1<f64>, cutoff: f64, order: usize, fs: f64) -> Array1<f64> {
+    let coeff = Coefficients::<f64>::from_params(
+        Type::HighPass,
+        fs.hz(),
+        cutoff.hz(),
+        Q_BUTTERWORTH_F64
+    ).unwrap();
+
+    let mut processed_data = data.to_owned();
+
+    for _ in 0..order {
+        processed_data = forward_filter(processed_data.view(), &coeff);
+        processed_data = backward_filter(processed_data.view(), &coeff);
+    }
+
+    processed_data
+}
 
 fn forward_filter(data: ArrayView1<f64>, coefficients: &Coefficients<f64>) -> Array1<f64> {
     // Create the filter instance

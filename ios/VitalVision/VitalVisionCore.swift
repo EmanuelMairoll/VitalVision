@@ -57,7 +57,7 @@ class VitalVisionCore {
 
         let vvcore = VvCore(config: config, delegate: delegate)
         vvcore.startBleLoop()
-        vvcore.startAnalyticsLoop()
+        //vvcore.startAnalyticsLoop()
 
         // overwriting an old, non-nil vvcore (should) remove its last ARC reference
         self.vvcore = vvcore

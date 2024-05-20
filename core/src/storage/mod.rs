@@ -1,6 +1,7 @@
 use super::*;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use ndarray::Array1;
 
 mod ringbuffer;
@@ -44,16 +45,18 @@ impl Storage {
             delegate1.devices_changed(devices.clone());
         });
     }
-
-    pub fn add_datapoint(&mut self, uuid: String, data_point: u16) {
+    
+    pub fn add_datapoint(&mut self, uuid: String, data_points: Vec<u16>) {
         if !self.data.contains_key(&uuid) {
             self.data
                 .insert(uuid.clone(), SliceableRingBuffer::new(self.hist_size, None));
         }
 
         let data = self.data.get_mut(&uuid).unwrap();
-        data.write(Some(data_point));
-
+        for data_point in data_points.iter() {
+            data.write(Some(*data_point));
+        }
+        
         let delegate1 = self.delegate.clone();
         let vec = data.get_slice_with_len(self.delegate_hist_size).to_vec();
         let copy = vec.clone();

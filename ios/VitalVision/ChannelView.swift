@@ -112,6 +112,11 @@ struct ChannelDetailView: View {
         .onReceive(core.dataSubject) { channelId, data in
             if channelId == channel.id {
                 self.channelData = data
+                
+                /*
+                if channel.name.contains("ECG") {
+                    print("NEW DATA: \(data[data.count - 10 ... data.count - 1])")
+                }*/ 
             }
         }
     }

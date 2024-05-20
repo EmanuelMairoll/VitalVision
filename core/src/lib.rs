@@ -1,6 +1,6 @@
-use async_std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use ndarray::Array1;
-use rand::prelude::*;
+use tokio::sync::RwLock;
 use crate::analysis::ppg;
 
 uniffi::include_scaffolding!("vvcore");
@@ -107,16 +107,15 @@ impl VVCore {
 
         let ble = self.ble.clone();
         let mac_prefix = self.config.ble_mac_prefix.clone();
-        self.rt.spawn(async move {
-            ble.start_loop(mac_prefix).await.unwrap();
-        });
+        let interval = self.config.sync_interval_min as u64 * 60;
 
-        self.rt.spawn({
-            let ble = self.ble.clone();
-            let interval = self.config.sync_interval_min as u64 * 60;
-            async move {
-                tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
-                ble.sync_time().await.unwrap();
+        self.rt.spawn(async move {
+            let event_sender = ble.start_loop(mac_prefix).await.unwrap();
+
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(interval));
+            loop {
+                interval.tick().await;
+                event_sender.send(ble::BleEvent::SyncTime).await.unwrap();
             }
         });
     }
@@ -134,7 +133,8 @@ impl VVCore {
                 envelope_range: 23, // 0.5 seconds
                 amplitude_min: 10,
                 amplitude_max: 2000,
-            }
+            },
+            plotter: None
         };
         self.rt.spawn(async move {
             loop {
@@ -143,6 +143,7 @@ impl VVCore {
                     let data = data.iter().filter_map(|x| *x).collect::<Array1<u16>>();
 
                     if uuid != "00:00:00:00:00:00-0" && uuid != "00:00:00:00:00:00-1"{
+                        let data = data.map(|&x| -(x as f64));
                         let result = analysis.analyze(data);
 
                         println!("{}: {:?}", uuid, result.signal_quality);
@@ -176,9 +177,6 @@ impl VVCore {
             return;
         }
 
-        let ble = self.ble.clone();
-        self.rt.spawn(async move {
-            ble.sync_time().await.unwrap();
-        });
+        // TODO: Implement
     }
 }

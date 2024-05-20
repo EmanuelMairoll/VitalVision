@@ -7,8 +7,8 @@ edition = "2021"
 crate-type = ["lib", "cdylib", "staticlib"]
 name = "vvcore"
 
+
 [dependencies]
-async-std = { version = "1", features = ["attributes", "tokio1"] }
 uniffi = { version = "0.26.1", features = ["build"] }
 btleplug = "0.11.5"
 tokio = { version = "1", features = ["full"] }
@@ -19,8 +19,12 @@ chrono = "0.4.19"
 ndarray = "0.15.6"
 ndarray-stats = "0.5.1"
 biquad = "0.4.2"
-plotters = "0.3.5"
+find_peaks = "0.1.5"
+tokio-stream = "0.1.15"
 
 [build-dependencies]
 uniffi_build = "0.26.1"
 uniffi_bindgen = "0.26.1"
+
+[dev-dependencies]
+plotters = "0.3.5"
