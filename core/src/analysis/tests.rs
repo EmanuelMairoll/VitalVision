@@ -1,10 +1,11 @@
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::fs::File;
     use std::io::{self, Read};
     use ndarray::{Array1, ArrayView1};
     use crate::analysis::{ecg, ppg};
     use plotters::prelude::*;
+    use crate::{ECGAnalysisParameters, PPGAnalysisParameters};
 
 
     #[test]
@@ -12,7 +13,7 @@ mod tests {
         let file_path = "ppg.bin";
 
         let signal = load_signal_u16(file_path).expect("Failed to load signal");
-        let params = ppg::Parameters {
+        let params = PPGAnalysisParameters {
             sampling_frequency: 30.0,
             filter_cutoff_low: 1.0,
             filter_cutoff_high: 10.0,
@@ -39,15 +40,15 @@ mod tests {
         let file_path = "ecg.bin";
 
         let signal = load_signal_f64(file_path).expect("Failed to load signal");
-        let params = ecg::Parameters {
+        let params = ECGAnalysisParameters {
             sampling_frequency: 32.0,
-            filter_bandpass_frequencies: (0.6, 15.0),
+            filter_cutoff_low: 0.6,
             filter_order: 1,
-            r_peak_prominence: 0.01,
-            r_peak_height: 0.02,
+            r_peak_prominence_mad_multiple: 12.0,
             r_peak_distance: 5,
-            r_peak_width: 3,
-            hr_range: (40.0, 200.0),
+            r_peak_plateau: 0,
+            hr_min: 40.0,
+            hr_max: 200.0,
             hr_max_diff: 20.0,
         };
 
@@ -55,13 +56,13 @@ mod tests {
 
         // add random noise in the height of 0.05
         // let signal = signal.map(|&x| (x + 0.05 * rand::random::<f64>()));
-        
+
         // Run the analysis function
         let results = analyzer.analyze(signal.view());
 
         println!("Heart rate: {:?}", results.hr_estimate);
         println!("Signal quality: {:?}", results.signal_quality);
-        
+
         assert!(!results.hr_estimate.is_empty(), "Heart rate estimates should not be empty");
         assert!(!results.signal_quality.is_empty(), "Signal quality results should not be empty");
 

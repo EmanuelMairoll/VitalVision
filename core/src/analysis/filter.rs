@@ -20,7 +20,7 @@ pub fn bandpass_filter(data: ArrayView1<f64>, lowcut: f64, highcut: f64, order: 
 
     let mut band_full = data.to_owned();
     
-    for i in 0..order {
+    for _ in 0..order {
         let low_forward = forward_filter(data, &low_coeff);
         let band_forward = forward_filter(low_forward.view(), &high_coeff);
         let low_full = backward_filter(band_forward.view(), &low_coeff);
@@ -84,36 +84,6 @@ fn backward_filter(data: ArrayView1<f64>, coefficients: &Coefficients<f64>) -> A
 
     processed_data
 }
-
-fn forward_backward_filter(data: ArrayView1<f64>, coefficients: &Coefficients<f64>) -> Array1<f64> {
-    // Create the filter instance
-    let mut filter = DirectForm1::<f64>::new(*coefficients);
-
-    // Create an owned array from the view to manipulate and return
-    let mut processed_data = data.to_owned();
-
-    // Forward pass
-    for sample in processed_data.iter_mut() {
-        *sample = filter.run(*sample);
-    }
-
-    // Reverse the data for the backward pass
-    processed_data.as_slice_mut().unwrap().reverse();
-
-    // Reset the filter state for the backward pass
-    let mut filter = DirectForm1::<f64>::new(*coefficients);
-
-    // Backward pass
-    for sample in processed_data.iter_mut() {
-        *sample = filter.run(*sample);
-    }
-
-    // Re-reverse the data to restore original order
-    processed_data.as_slice_mut().unwrap().reverse();
-
-    processed_data
-}
-
 
 /// Estimates the lower envelope of a given signal.
 /// The lower envelope is defined as the minimum value within a window around each sample.

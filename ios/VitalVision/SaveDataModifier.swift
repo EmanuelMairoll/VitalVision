@@ -2,12 +2,12 @@ import SwiftUI
 import Combine
 
 struct SaveDataModifier: ViewModifier {
-    @Binding var channelData: [UInt16?]?
+    @Binding var channelData: [Int32?]?
     let channelName: String
     
     @State private var showingSaveDialog = false
     @State private var filename: String = ""
-    @State private var snapshot: [UInt16?] = []
+    @State private var snapshot: [Int32?] = []
 
     @Environment(\.openURL) var openURL
     

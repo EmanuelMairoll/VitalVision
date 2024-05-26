@@ -3,13 +3,12 @@ namespace vvcore {
 };
 
 dictionary Device {
-    string mac;
+    string id;
     u16 serial;
     string name;
     u8 battery;
     i64 drift_us;
     boolean connected;
-    DeviceStatus status;
     sequence<Channel> channels;
 };
 
@@ -17,19 +16,7 @@ dictionary Channel {
     string id;
     string name;
     ChannelType channel_type;
-    u16 signal_max;
-    u16 signal_min;
-    ChannelStatus status;
-};
-
-enum DeviceStatus {
-    "Ok",
-    "SignalIssue",
-};
-
-enum ChannelStatus {
-    "Ok",
-    "SignalIssue",
+    f32? signal_quality;
 };
 
 enum ChannelType {
@@ -42,26 +29,46 @@ dictionary VVCoreConfig {
     u32 hist_size_api;
     u32 hist_size_analytics;
     u32 max_initial_rtt_ms;
-    u32 sync_interval_min;
-    string ble_mac_prefix;
-    u8 max_signal_resolution_bit;
-    u8 max_signal_sampling_rate_hz;
+    u64 sync_interval_sec;
     boolean enable_mock_devices;
+    u32 analysis_interval_points;
+    ECGAnalysisParameters ecg_analysis_params;
+    PPGAnalysisParameters ppg_analysis_params;
+};
+
+dictionary ECGAnalysisParameters {
+    f64 sampling_frequency;
+    f64 filter_cutoff_low;
+    u32 filter_order;
+    f64 r_peak_prominence_mad_multiple;
+    u32 r_peak_distance;
+    u32 r_peak_plateau;
+    f64 hr_min;
+    f64 hr_max;
+    f64 hr_max_diff;
+};
+
+dictionary PPGAnalysisParameters {
+    f64 sampling_frequency;
+    f64 filter_cutoff_low;
+    f64 filter_cutoff_high;
+    u32 filter_order;
+    u16 envelope_range;
+    i32 amplitude_min;
+    i32 amplitude_max;
 };
 
 [Trait, WithForeign]
 interface VVCoreDelegate {
     void devices_changed(sequence<Device> devices);
 
-    void new_data(string channel_uuid, sequence<u16?> data);
+    void new_data(string channel_uuid, sequence<i32?> data);
 };
 
 interface VVCore {
     constructor(VVCoreConfig config, VVCoreDelegate delegate);
 
     void start_ble_loop();
-
-    void start_analytics_loop();
 
     void sync_time();
 };

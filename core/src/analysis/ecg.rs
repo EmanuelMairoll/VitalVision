@@ -1,19 +1,11 @@
 use std::error::Error;
 use find_peaks::PeakFinder;
 use ndarray::{Array1, ArrayView1};
-use crate::analysis::filter::{bandpass_filter, highpass_filter};
+use noisy_float::prelude::Float;
+use crate::analysis::filter::{highpass_filter};
+use noisy_float::types::{R64, r64};
+use crate::ECGAnalysisParameters;
 
-pub struct Parameters {
-    pub sampling_frequency: f64,
-    pub filter_bandpass_frequencies: (f64, f64),
-    pub filter_order: usize,
-    pub r_peak_prominence: f64,
-    pub r_peak_height: f64,
-    pub r_peak_distance: usize,
-    pub r_peak_width: usize,
-    pub hr_range: (f64, f64),
-    pub hr_max_diff: f64,
-}
 
 pub struct Results {
     pub hr_estimate: Vec<f64>,
@@ -21,7 +13,7 @@ pub struct Results {
 }
 
 pub struct Analysis {
-    pub params: Parameters,
+    pub params: ECGAnalysisParameters,
 
     pub plotter: Option<Box<dyn Fn(
         ArrayView1<f64>,
@@ -44,7 +36,10 @@ impl Analysis {
 
         self.plot_signal(filtered.view(), "Filtered Signal", "signal_filt.png", None).unwrap();
 
-        let peaks = self.find_peaks(filtered.view());
+        let mad = Analysis::median_absolute_deviation(filtered.view());
+        println!("Median Absolute Deviation: {}", mad);
+        
+        let peaks = self.find_peaks(mad, filtered.view());
 
         self.plot_signal(filtered.view(), "Peaks", "signal_peaks.png", Some(peaks.clone())).unwrap();
         
@@ -76,26 +71,61 @@ impl Analysis {
     }
 
     fn filter(&self, signal: ArrayView1<f64>) -> Array1<f64> {
-        let (low, high) = self.params.filter_bandpass_frequencies;
-        let order = self.params.filter_order;
+        let low = self.params.filter_cutoff_low;
+        let order = self.params.filter_order as usize;
         let fs = self.params.sampling_frequency;
         highpass_filter(signal, low, order, fs)
     }
 
-    fn find_peaks(&self, signal: ArrayView1<f64>) -> Vec<usize> {
-        let prominence = self.params.r_peak_prominence;
-        let height = self.params.r_peak_height;
-        let distance = self.params.r_peak_distance;
-        let width = self.params.r_peak_width;
+    fn median_absolute_deviation(data: ArrayView1<f64>) -> f64 {
+        let n = data.len();
+        if n == 0 {
+            return f64::NAN; // or handle the empty array case as you prefer
+        }
 
+        // Convert f64 values to orderable R64 values
+        let mut noisy_data: Vec<R64> = data.iter().map(|&x| r64(x)).collect();
+
+        // Sort the noisy data to find the median
+        noisy_data.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        // Calculate median
+        let median = if n % 2 == 0 {
+            (noisy_data[n / 2 - 1] + noisy_data[n / 2]) / 2.0
+        } else {
+            noisy_data[n / 2]
+        };
+
+        // Calculate the absolute deviations from the median
+        let deviations: Vec<f64> = noisy_data
+            .iter()
+            .map(|&x| (x - median).abs().raw())
+            .collect();
+
+        // Convert deviations to orderable R64 values for sorting
+        let mut noisy_deviations: Vec<R64> = deviations.iter().map(|&x| r64(x)).collect();
+
+        // Sort deviations to find the median absolute deviation
+        noisy_deviations.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        // Calculate the median of the absolute deviations
+        if n % 2 == 0 {
+            ((noisy_deviations[n / 2 - 1] + noisy_deviations[n / 2]) / 2.0).raw()
+        } else {
+            noisy_deviations[n / 2].raw()
+        }
+    }
+    
+    fn find_peaks(&self, mad: f64, signal: ArrayView1<f64>) -> Vec<usize> {
+        let multiplier = self.params.r_peak_prominence_mad_multiple;
+        let distance = self.params.r_peak_distance as usize;
+        let plateau = self.params.r_peak_plateau as usize;
         let slice: &[f64] = signal.as_slice().unwrap();
         let peaks = PeakFinder::new(slice)
-            .with_min_prominence(prominence)
-            .with_min_height(height)
+            .with_min_prominence(multiplier * mad)
             .with_min_distance(distance)
-            //.with_min_plateau_size(width)
+            .with_max_plateau_size(plateau)
             .find_peaks();
-        
         
         let mut peaks: Vec<usize> = peaks.iter().map(|p| p.position.start).collect();
         peaks.sort_unstable();

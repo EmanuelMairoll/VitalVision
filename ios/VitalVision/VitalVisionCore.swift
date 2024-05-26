@@ -1,29 +1,22 @@
-//
-//  Core.swift
-//  VitalVision
-//
-//  Created by Emanuel Mairoll on 23.03.24.
-//
-
 import Combine
 
 class VitalVisionCore {
 
     public let devicesSubject: PassthroughSubject<[Device], Never>  = PassthroughSubject<[Device], Never>()
-    public let dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16?]), Never>  = PassthroughSubject<(channelUuid: String, data: [UInt16?]), Never>()
+    public let dataSubject: PassthroughSubject<(channelUuid: String, data: [Int32?]), Never>  = PassthroughSubject<(channelUuid: String, data: [Int32?]), Never>()
      
     var appliedConfig: VvCoreConfig? = nil
     var vvcore: VvCore?
 
     // not using VitalVisionCore as callback directly to break ARC cycle
     class Delegate: VvCoreDelegate {
-        init(devicesSubject: PassthroughSubject<[Device], Never>, dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16?]), Never>) {
+        init(devicesSubject: PassthroughSubject<[Device], Never>, dataSubject: PassthroughSubject<(channelUuid: String, data: [Int32?]), Never>) {
             self.devicesSubject = devicesSubject
             self.dataSubject = dataSubject
         }
         
         public let devicesSubject: PassthroughSubject<[Device], Never>
-        public let dataSubject: PassthroughSubject<(channelUuid: String, data: [UInt16?]), Never>
+        public let dataSubject: PassthroughSubject<(channelUuid: String, data: [Int32?]), Never>
 
         public weak var wself: VitalVisionCore?
         
@@ -35,7 +28,7 @@ class VitalVisionCore {
             }
         }
         
-        func newData(channelUuid: String, data: [UInt16?]) {
+        func newData(channelUuid: String, data: [Int32?]) {
             Task {
                 await MainActor.run {
                     dataSubject.send((channelUuid: channelUuid, data: data))
@@ -45,26 +38,51 @@ class VitalVisionCore {
     }
     
     
-    func applyConfig(histSizeApi: Int, histSizeAnalytics: Int, maxInitialRttMs: Int, syncIntervalMin: Int, bleMacPrefix: String, maxSignalResolutionBit: Int, maxSignalSamplingRateHz: Int, enableMockDevices: Bool){
-        let config = VvCoreConfig(histSizeApi: UInt32(histSizeApi), histSizeAnalytics: UInt32(histSizeAnalytics), maxInitialRttMs: UInt32(maxInitialRttMs), syncIntervalMin: UInt32(syncIntervalMin), bleMacPrefix: bleMacPrefix, maxSignalResolutionBit: UInt8(maxSignalResolutionBit), maxSignalSamplingRateHz: UInt8(maxSignalSamplingRateHz), enableMockDevices: enableMockDevices)
+    func applyConfig(config: AppConfig){
+        let coreConfig = VvCoreConfig(
+            histSizeApi: UInt32(config.histSizeApi),
+            histSizeAnalytics: UInt32(config.histSizeAnalytics),
+            maxInitialRttMs: UInt32(config.maxInitialRttMs),
+            syncIntervalSec: UInt64(config.syncIntervalSec),
+            enableMockDevices: config.enableMockDevices,
+            analysisIntervalPoints: UInt32(config.analysisIntervalPoints),
+            ecgAnalysisParams: EcgAnalysisParameters(
+                samplingFrequency: config.ecgSamplingFrequency,
+                filterCutoffLow: config.ecgFilterCutoffLow,
+                filterOrder: UInt32(config.ecgFilterOrder),
+                rPeakProminenceMadMultiple: config.ecgRPeakProminenceMadMultiple,
+                rPeakDistance: UInt32(config.ecgRPeakDistance),
+                rPeakPlateau: UInt32(config.ecgRPeakPlateau),
+                hrMin: config.ecgHRRangeLow,
+                hrMax: config.ecgHRRangeHigh,
+                hrMaxDiff: config.ecgHRMaxDiff
+            ),
+            ppgAnalysisParams: PpgAnalysisParameters(
+                samplingFrequency: config.ppgSamplingFrequency,
+                filterCutoffLow: config.ppgFilterCutoffLow,
+                filterCutoffHigh: config.ppgFilterCutoffHigh,
+                filterOrder: UInt32(config.ppgFilterOrder),
+                envelopeRange: UInt16(config.ppgEnvelopeRange),
+                amplitudeMin: Int32(config.ppgAmplitudeMin),
+                amplitudeMax: Int32(config.ppgAmplitudeMax)
+            )
+        )
         
         // assume config has changed
-        guard appliedConfig != config else {
+        guard appliedConfig != coreConfig else {
             return
         }
         
         let delegate = Delegate(devicesSubject: devicesSubject, dataSubject: dataSubject)
 
-        let vvcore = VvCore(config: config, delegate: delegate)
+        let vvcore = VvCore(config: coreConfig, delegate: delegate)
         vvcore.startBleLoop()
-        //vvcore.startAnalyticsLoop()
 
         // overwriting an old, non-nil vvcore (should) remove its last ARC reference
         self.vvcore = vvcore
-        self.appliedConfig = config
+        self.appliedConfig = coreConfig
         
         delegate.wself = self
-        
     }
     
     func syncTime(){

@@ -1826,6 +1826,7 @@ dependencies = [
  "futures",
  "ndarray",
  "ndarray-stats",
+ "noisy_float",
  "plotters",
  "rand",
  "tokio",

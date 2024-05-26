@@ -14,13 +14,17 @@ extension ChannelType: CustomStringConvertible {
     }
 }
 
-extension ChannelStatus: CustomStringConvertible {
-    public var description: String {
-        switch self {
-        case .ok:
-            return "OK"
-        case .signalIssue:
-            return "Signal Issue"
+extension Channel {
+    public var qualityDesc: String? {
+        guard let quality = self.signalQuality else {
+            return nil
+        }
+        if quality < 0.5 {
+            return "Poor"
+        } else if quality < 0.8 {
+            return "Fair"
+        } else {
+            return "Good"
         }
     }
 }
@@ -38,7 +42,7 @@ struct ChannelPreviewView: View {
             }
             Spacer()
             Text(channel.channelType.description)
-            StatusIndicator(isOk: channel.status == .ok)
+            StatusIndicator(isOk: channel.signalQuality ?? 1.0 > 0.5)
         }
     }
 }
@@ -47,10 +51,10 @@ struct ChannelDetailView: View {
     let core: VitalVisionCore
     let channel: Channel
 
-    @State var channelData: [UInt16?]? = nil
+    @State var channelData: [Int32?]? = nil
 
     // Computed property to get the maximum value of the last 50% of channelData
-    var channelDataMax: UInt16 {
+    var channelDataMax: Int32 {
         let halfIndex = (channelData?.count ?? 0) / 2
         return channelData?
             .suffix(from: halfIndex)
@@ -59,7 +63,7 @@ struct ChannelDetailView: View {
     }
 
     // Computed property to get the minimum value of the last 50% of channelData
-    var channelDataMin: UInt16 {
+    var channelDataMin: Int32 {
         let halfIndex = (channelData?.count ?? 0) / 2
         return channelData?
             .suffix(from: halfIndex)
@@ -68,7 +72,7 @@ struct ChannelDetailView: View {
     }
 
     // Computed property to calculate the range of the last 50% of channelData
-    var channelDataRange: UInt16 {
+    var channelDataRange: Int32 {
         return channelDataMax - channelDataMin
     }
 
@@ -80,8 +84,6 @@ struct ChannelDetailView: View {
         return [minVal, maxVal]
     }
 
-    
-    
     var body: some View {
         VStack {
             Chart {
@@ -98,25 +100,20 @@ struct ChannelDetailView: View {
             }
             .frame(height: 300)
             .labelsHidden()
-            //.chartYScale(domain: [channel.signalMin, channel.signalMax])
             .chartYScale(domain: channelDataDomain)
             .clipped()
             Spacer()
-            Text("\(channel.status)")
-                .font(.title)
-                .padding()
-
+            if let quality = channel.qualityDesc {
+                Text("Signal Quality: \(quality)")
+                    .font(.title)
+                    .padding()
+            }
         }
         .navigationTitle(channel.name)
         .modifier(SaveDataModifier(channelData: $channelData, channelName: channel.name))
         .onReceive(core.dataSubject) { channelId, data in
             if channelId == channel.id {
                 self.channelData = data
-                
-                /*
-                if channel.name.contains("ECG") {
-                    print("NEW DATA: \(data[data.count - 10 ... data.count - 1])")
-                }*/ 
             }
         }
     }

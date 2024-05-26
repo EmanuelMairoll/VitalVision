@@ -1,73 +1,70 @@
 use super::*;
 
 use std::collections::HashMap;
-use std::sync::Arc;
-use ndarray::Array1;
 
 mod ringbuffer;
 
 use ringbuffer::SliceableRingBuffer;
 
-pub struct Storage {
-    devices: Vec<Device>,
+pub type DeviceStorage = HashMap<String, Device>;
+
+pub struct DataStorage {
     hist_size: usize,
-    delegate_hist_size: usize,
-    data: HashMap<String, SliceableRingBuffer<Option<u16>>>,
-    delegate: Arc<dyn VVCoreDelegate>,
+    ret_a_len: usize,
+    ret_b_len: usize,
+    data: HashMap<String, ChannelData>,
 }
 
-impl Storage {
-    pub fn new(hist_size: usize, delegate_hist_size: usize, delegate: Arc<dyn VVCoreDelegate>) -> Self {
-        if hist_size < delegate_hist_size {
-            panic!("hist_size must be greater than or equal to delegate_hist_size");
-        }
+pub struct ChannelData {
+    pub data: SliceableRingBuffer<Option<i32>>,
+    pub data_type: ChannelType,
+    pub datapoint_counter: u32,
+}
+
+impl DataStorage {
+    pub fn new(ret_a_len: usize, ret_b_len: usize) -> Self {
+        let max = ret_a_len.max(ret_b_len);
         
         Self {
-            devices: Vec::new(),
-            hist_size,
-            delegate_hist_size,
+            hist_size: max,
+            ret_a_len,
+            ret_b_len,
             data: HashMap::new(),
-            delegate,
         }
     }
-
-    pub fn get_devices(&self) -> Vec<Device> {
-        self.devices.clone()
-    }
-
-    pub fn modify_devices(&mut self, f: impl FnOnce(&mut Vec<Device>)) {
-        f(&mut self.devices);
-        println!("sending Devices: {:?}", self.devices);
-
-        let delegate1 = self.delegate.clone();
-        let devices = self.devices.clone();
-        tokio::spawn(async move {
-            delegate1.devices_changed(devices.clone());
-        });
+    
+    pub fn add_channel(&mut self, uuid: String, c_type: ChannelType) {
+        self.data
+            .insert(uuid.clone(), ChannelData {
+                data: SliceableRingBuffer::new(self.hist_size, None),
+                data_type: c_type,
+                datapoint_counter: 0,
+            });
     }
     
-    pub fn add_datapoint(&mut self, uuid: String, data_points: Vec<u16>) {
+    pub fn remove_channel(&mut self, uuid: String) {
+        self.data.remove(&uuid);
+    }
+    
+    pub fn add_datapoint(&mut self, uuid: String, data_points: Vec<i32>) -> Option<(&[Option<i32>], &[Option<i32>], ChannelType, u32)> {
         if !self.data.contains_key(&uuid) {
-            self.data
-                .insert(uuid.clone(), SliceableRingBuffer::new(self.hist_size, None));
+            return None;
         }
-
-        let data = self.data.get_mut(&uuid).unwrap();
+        
+        let channel_data = self.data.get_mut(&uuid).unwrap();
         for data_point in data_points.iter() {
-            data.write(Some(*data_point));
+            channel_data.data.write(Some(*data_point));
+            channel_data.datapoint_counter += 1;
         }
         
-        let delegate1 = self.delegate.clone();
-        let vec = data.get_slice_with_len(self.delegate_hist_size).to_vec();
-        let copy = vec.clone();
-        
-        let array = Array1::from_vec(vec.iter().filter(|x| x.is_some()).map(|x| x.unwrap()).collect());
-        tokio::spawn(async move {
-            delegate1.new_data(uuid, vec);
-        });
+        let ret_a = channel_data.data.get_slice_with_len(self.ret_a_len);
+        let ret_b = channel_data.data.get_slice_with_len(self.ret_b_len);
+        return Some((ret_a, ret_b, channel_data.data_type.clone(), channel_data.datapoint_counter));
     }
     
-    pub fn get_data_for_all_channels(&self) -> HashMap<String, Vec<Option<u16>>> {
-        self.data.iter().map(|(k, v)| (k.clone(), v.get_slice_with_len(self.delegate_hist_size).to_vec())).collect()
-    } 
+    pub fn reset_counter(&mut self, uuid: String) {
+        if let Some(channel_data) = self.data.get_mut(&uuid) {
+            channel_data.datapoint_counter = 0;
+        }
+    }
 }

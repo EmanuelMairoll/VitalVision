@@ -8,14 +8,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Binding var histSizeApi: Int
-    @Binding var histSizeAnalytics: Int
-    @Binding var maxInitialRttMs: Int
-    @Binding var syncIntervalMin: Int
-    @Binding var bleMacPrefix: String
-    @Binding var maxSignalResolutionBit: Int
-    @Binding var maxSignalSamplingRateHz: Int
-    @Binding var enableMockDevices: Bool
+    @Binding var config: AppConfig
 
     @Environment(\.dismiss) var dismiss
 
@@ -23,20 +16,20 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section(header: Text("Device Settings")) {
-                    SettingRow(label: "BLE Mac Prefix", placeholder: "AA:BB:CC:DD:EE:FF", value: $bleMacPrefix)
-                    SettingRow(label: "Max Initial RTT (ms)", placeholder: "00", value: $maxInitialRttMs)
-                    SettingRow(label: "Sync Interval (min)", placeholder: "00", value: $syncIntervalMin)
+                    SettingRow(label: "Sync Interval (sec)", placeholder: "00", value: $config.syncIntervalSec)
                 }
 
                 Section(header: Text("Signal Settings")) {
-                    SettingRow(label: "History Size API", placeholder: "00", value: $histSizeApi)
-                    SettingRow(label: "History Size Analytics", placeholder: "00", value: $histSizeAnalytics)
-                    SettingRow(label: "Max Signal Resolution (Bit)", placeholder: "00", value: $maxSignalResolutionBit)
-                    SettingRow(label: "Max Signal Sampling Rate (Hz)", placeholder: "00", value: $maxSignalSamplingRateHz)
+                    SettingRow(label: "History Size API", placeholder: "00", value: $config.histSizeApi)
+                    SettingRow(label: "History Size Analytics", placeholder: "00", value: $config.histSizeAnalytics)
                 }
 
                 Section(header: Text("Development")) {
-                    Toggle("Enable Mock Devices", isOn: $enableMockDevices)
+                    Toggle("Enable Mock Devices", isOn: $config.enableMockDevices)
+                }
+                
+                Section(header: Text("PPG Analysis")) {
+                    
                 }
             }
             .navigationTitle("Settings")
@@ -91,7 +84,10 @@ struct SettingRow<T>: View {
 }
 
 
+/*
 #Preview {
-    SettingsView(histSizeApi: .constant(500), histSizeAnalytics: .constant(300), maxInitialRttMs: .constant(50), syncIntervalMin: .constant(1), bleMacPrefix: .constant("AA:BB:CC:DD:EE:FF"), maxSignalResolutionBit: .constant(16), maxSignalSamplingRateHz: .constant(30), enableMockDevices: .constant(false))
+    SettingsView(
+        histSizeApi: .constant(100), enableMockDevices: .constant(false), syncIntervalMin: .constant(10), histSizeAnalytics: .constant(100))
+    
 
-}
+}*/

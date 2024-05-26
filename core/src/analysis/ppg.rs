@@ -1,16 +1,8 @@
 use std::error::Error;
 use ndarray::{Array1, ArrayView1, s};
 use crate::analysis::filter::{bandpass_filter, lower_envelope_est};
+use crate::PPGAnalysisParameters;
 
-pub struct Parameters {
-    pub sampling_frequency: f64,
-    pub filter_cutoff_low: f64,
-    pub filter_cutoff_high: f64,
-    pub filter_order: usize,
-    pub envelope_range: u16,
-    pub amplitude_min: i32,
-    pub amplitude_max: i32,
-}
 
 pub struct Results {
     pub hr_estimate: Vec<u16>,
@@ -27,7 +19,7 @@ pub struct Pulse<'a> {
 impl<'a> Pulse<'a> {
     pub fn new(signal: ArrayView1<'a, f64>, start: usize, peak: usize, end: usize) -> Self {
         Pulse {
-            signal: signal,
+            signal,
             start_trough_index: start,
             peak_index: peak,
             end_trough_index: end,
@@ -55,7 +47,7 @@ impl<'a> Pulse<'a> {
 }
 
 pub struct Analysis {
-    pub params: Parameters,
+    pub params: PPGAnalysisParameters,
 
     pub plotter: Option<Box<dyn Fn(
         ArrayView1<f64>,
@@ -139,7 +131,7 @@ impl Analysis {
 
     fn filter(&self, data: ArrayView1<f64>) -> Array1<f64> {
         let (low, high) = (self.params.filter_cutoff_low, self.params.filter_cutoff_high);
-        let order = self.params.filter_order;
+        let order = self.params.filter_order as usize;
         let fs = self.params.sampling_frequency;
         bandpass_filter(data, low, high, order, fs)
     }
@@ -167,7 +159,7 @@ impl Analysis {
     }
 
     
-    fn validate_pulses(&self, pulses: &[Pulse]) -> (Vec<(bool, bool, bool)>) {
+    fn validate_pulses(&self, pulses: &[Pulse]) -> Vec<(bool, bool, bool)> {
         let amplitude_min = self.params.amplitude_min as f64;
         let amplitude_max = self.params.amplitude_max as f64;
         

@@ -1,30 +1,21 @@
 import SwiftUI
 
+
 struct ContentView: View {
     
-    // DEFAULT SETTINGS VALUES
-    @AppStorage("histSizeApi") var histSizeApi: Int = 500
-    @AppStorage("histSizeAnalytics") var histSizeAnalytics: Int = 500
-    @AppStorage("maxInitialRttMs") var maxInitialRttMs: Int = 1000
-    @AppStorage("syncIntervalMin") var syncIntervalMin: Int = 1
-    @AppStorage("bleMacPrefix") var bleMacPrefix: String = "AA:BB"
-    @AppStorage("maxSignalResolutionBit") var maxSignalResolutionBit: Int = 8
-    @AppStorage("maxSignalSamplingRateHz") var maxSignalSamplingRateHz: Int = 100
-    @AppStorage("enableMockDevices") var enableMockDevices: Bool = false
+    @Binding var appConfig: AppConfig
     
     @State var core:VitalVisionCore = VitalVisionCore()
     @State var devices: [Device]? = nil
-    @State var showSettings: Bool = false
-
 #if os(macOS)
     @State var selectedDevice: Device?
-
+    
     var body: some View {
         NavigationSplitView {
             VStack {
                 if let devices = devices {
-                    List(devices, id: \.mac, selection: $selectedDevice) { device in
-                        DevicePreviewView(core: core, device: device)
+                    List(devices, id: \.id, selection: $selectedDevice) { device in
+                        DevicePreviewView(core: core, device: device, additionalData: .constant(AdditionalDeviceData()))
                         
                     }
                     .navigationTitle("BLE Devices")
@@ -35,9 +26,7 @@ struct ContentView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .automatic) {
-                    Button {
-                        showSettings = true
-                    } label: {
+                    SettingsLink {
                         Label("Settings", systemImage: "gearshape.fill")
                     }
                 }
@@ -51,39 +40,34 @@ struct ContentView: View {
             }
         } detail: {
             if let device = selectedDevice {
-                DeviceDetailView(core: core, device: device)
+                DeviceDetailView(core: core, device: device, additionalData: Binding(
+                    get: { appConfig.additionalData[device.id] ?? AdditionalDeviceData() },
+                    set: { appConfig.additionalData[device.id] = $0 }
+                ))
             } else {
                 Text("No device selected")
             }
         }
         .onAppear {
-            core.applyConfig(histSizeApi: histSizeApi, histSizeAnalytics: histSizeAnalytics, maxInitialRttMs: maxInitialRttMs, syncIntervalMin: syncIntervalMin, bleMacPrefix: bleMacPrefix, maxSignalResolutionBit: maxSignalResolutionBit, maxSignalSamplingRateHz: maxSignalSamplingRateHz, enableMockDevices: enableMockDevices)
+            core.applyConfig(config: appConfig)
         }
         .onReceive(core.devicesSubject) { devices in
             self.devices = devices
         }
-        .sheet(isPresented: $showSettings) {
-            SettingsView(
-                histSizeApi: $histSizeApi,
-                histSizeAnalytics: $histSizeAnalytics,
-                maxInitialRttMs: $maxInitialRttMs,
-                syncIntervalMin: $syncIntervalMin,
-                bleMacPrefix: $bleMacPrefix,
-                maxSignalResolutionBit: $maxSignalResolutionBit,
-                maxSignalSamplingRateHz: $maxSignalSamplingRateHz,
-                enableMockDevices: $enableMockDevices
-            )
-        }
-
     }
 #else
-    
+    @State var showSettings: Bool = false
+
     var body: some View {
         NavigationStack {
             VStack {
                 if let devices = devices {
-                    List(devices, id: \.mac) { device in
-                        DevicePreviewView(core: core, device: device)
+                    List(devices, id: \.id) { device in
+                        
+                        DevicePreviewView(core: core, device: device, additionalData: Binding(
+                            get: { appConfig.additionalData[device.id] ?? AdditionalDeviceData() },
+                            set: { appConfig.additionalData[device.id] = $0 }
+                        ))
                     }
                     .navigationTitle("BLE Devices")
                 } else {
@@ -110,11 +94,12 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            applyConfig()
+            core.applyConfig(config: appConfig)
         }
         .onChange(of: showSettings) { value in
             if !showSettings {
-                applyConfig()
+                devices = nil
+                core.applyConfig(config: appConfig)
             }
         }
         .onReceive(core.devicesSubject) { devices in
@@ -122,25 +107,14 @@ struct ContentView: View {
         }
         .fullScreenCover(isPresented: $showSettings) {
             SettingsView(
-                histSizeApi: $histSizeApi,
-                histSizeAnalytics: $histSizeAnalytics,
-                maxInitialRttMs: $maxInitialRttMs,
-                syncIntervalMin: $syncIntervalMin,
-                bleMacPrefix: $bleMacPrefix,
-                maxSignalResolutionBit: $maxSignalResolutionBit,
-                maxSignalSamplingRateHz: $maxSignalSamplingRateHz,
-                enableMockDevices: $enableMockDevices
+                config: $appConfig
             )
         }
     }
 #endif
     
-    func applyConfig() {
-        core.applyConfig(histSizeApi: histSizeApi, histSizeAnalytics: histSizeAnalytics, maxInitialRttMs: maxInitialRttMs, syncIntervalMin: syncIntervalMin, bleMacPrefix: bleMacPrefix, maxSignalResolutionBit: maxSignalResolutionBit, maxSignalSamplingRateHz: maxSignalSamplingRateHz, enableMockDevices: enableMockDevices)
-    }
 }
 
-/*
 #Preview {
-    ContentView()
-}*/
+    ContentView(appConfig: .constant(AppConfig()))
+}

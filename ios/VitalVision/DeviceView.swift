@@ -1,26 +1,23 @@
 import SwiftUI
 
-extension DeviceStatus: CustomStringConvertible {
-    public var description: String {
-        switch self {
-        case .ok:
-            return "OK"
-        case .signalIssue:
-            return "Signal Issue"
-        }
-    }
+struct AdditionalDeviceData: Codable {
+    var participant: String?
+    var location: String?
+    var other: String?
 }
 
 struct DevicePreviewView: View {
     let core: VitalVisionCore
     let device: Device
     
+    @Binding var additionalData: AdditionalDeviceData
+
     var body: some View {
-        NavigationLink(destination: DeviceDetailView(core: core, device: device)) {
+        NavigationLink(destination: DeviceDetailView(core: core, device: device, additionalData: $additionalData)) {
             HStack {
                 VStack(alignment: .leading) {
                     Text("\(device.name) (\(device.serial))" )
-                    Text(device.mac)
+                    Text(device.id)
                         .font(.caption)
                         .lineLimit(1)
                 }
@@ -31,7 +28,7 @@ struct DevicePreviewView: View {
                 StatusIndicator(isOk: device.connected)
             }
         }
-        .id(device.mac)
+        .id(device.id)
     }
 }
 
@@ -39,14 +36,20 @@ struct DeviceDetailView: View {
     let core: VitalVisionCore
     let device: Device
     
+    @Binding var additionalData: AdditionalDeviceData
+    
     var body: some View {
         List {
             Section(header: Text("Device Info")) {
-                Text("MAC: \(device.mac)")
-                Text("Status: \(device.status.description)")
+                Text("Serial: \(device.serial)")
                 Text("Connected: \(device.connected ? "YES" : "NO")")
                 Text("Time Drift: \(device.driftUs / 1000)ms")
                 Text("Battery Level: \(device.battery)%")
+            }
+            Section(header: Text("Additional Data")) {
+                TextField("Participant", text: $additionalData.participant ?? "")
+                TextField("Location", text: $additionalData.location ?? "")
+                TextField("Other", text: $additionalData.other ?? "")
             }
             Section(header: Text("Channels")) {
                 ForEach(device.channels, id: \.id) { channel in
@@ -64,8 +67,15 @@ struct DeviceDetailView: View {
             }
         }
         .navigationTitle(device.name)
-        .id(device.mac)
+        .id(device.id)
     }
+}
+
+func ??<T>(lhs: Binding<Optional<T>>, rhs: T) -> Binding<T> {
+    Binding(
+        get: { lhs.wrappedValue ?? rhs },
+        set: { lhs.wrappedValue = $0 }
+    )
 }
 
 struct StatusIndicator: View {
