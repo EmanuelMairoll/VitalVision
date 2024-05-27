@@ -5,15 +5,13 @@ pub(crate) mod tests {
     use ndarray::{Array1, ArrayView1};
     use crate::analysis::{ecg, ppg};
     use plotters::prelude::*;
-    use crate::{ECGAnalysisParameters, PPGAnalysisParameters};
-
-
+    
     #[test]
     fn test_ppg() {
         let file_path = "ppg.bin";
 
         let signal = load_signal_u16(file_path).expect("Failed to load signal");
-        let params = PPGAnalysisParameters {
+        let params = ppg::Parameters {
             sampling_frequency: 30.0,
             filter_cutoff_low: 1.0,
             filter_cutoff_high: 10.0,
@@ -40,7 +38,7 @@ pub(crate) mod tests {
         let file_path = "ecg.bin";
 
         let signal = load_signal_f64(file_path).expect("Failed to load signal");
-        let params = ECGAnalysisParameters {
+        let params = ecg::Parameters {
             sampling_frequency: 32.0,
             filter_cutoff_low: 0.6,
             filter_order: 1,

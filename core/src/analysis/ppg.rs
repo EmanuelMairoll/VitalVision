@@ -1,8 +1,18 @@
+use std::cmp::Ordering;
 use std::error::Error;
 use ndarray::{Array1, ArrayView1, s};
 use crate::analysis::filter::{bandpass_filter, lower_envelope_est};
-use crate::PPGAnalysisParameters;
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct Parameters {
+    pub sampling_frequency: f64,
+    pub filter_cutoff_low: f64,
+    pub filter_cutoff_high: f64,
+    pub filter_order: u32,
+    pub envelope_range: u16,
+    pub amplitude_min: i32,
+    pub amplitude_max: i32,
+}
 
 pub struct Results {
     pub hr_estimate: Vec<u16>,
@@ -47,7 +57,7 @@ impl<'a> Pulse<'a> {
 }
 
 pub struct Analysis {
-    pub params: PPGAnalysisParameters,
+    pub params: Parameters,
 
     pub plotter: Option<Box<dyn Fn(
         ArrayView1<f64>,
@@ -59,22 +69,22 @@ pub struct Analysis {
 
 impl Analysis {
     pub fn analyze(&self, signal: Array1<f64>) -> Results {
-        self.plot_signal(signal.view(), "Raw Signal", "signal_raw.png", None).unwrap();
+        self.plot_signal(signal.view(), "Raw Signal", "signal_raw.png", None);
         
         let mean = signal.mean().unwrap();
         let normalized = signal.mapv(|a| a - mean);
         
-        self.plot_signal(normalized.view(), "Normalized Signal", "signal_normalized.png", None).unwrap();
+        self.plot_signal(normalized.view(), "Normalized Signal", "signal_normalized.png", None);
         
         let filtered = self.filter(normalized.view());
         
-        self.plot_signal(filtered.view(), "Filtered Signal", "signal_filt.png", None).unwrap();
+        self.plot_signal(filtered.view(), "Filtered Signal", "signal_filt.png", None);
         
         let lower_env = self.lower_envelope(&filtered);
         let pulses = self.find_pulses(filtered.view(), &lower_env);
         
         let points_trough = pulses.iter().map(|p| p.start_trough_index).collect::<Vec<_>>();
-        self.plot_signal(filtered.view(), "Pulses", "signal_pulses.png", Some(points_trough)).unwrap();
+        self.plot_signal(filtered.view(), "Pulses", "signal_pulses.png", Some(points_trough));
         
         if pulses.len() < 3 {
             return Results {
@@ -96,7 +106,7 @@ impl Analysis {
             }
         }).collect::<Vec<_>>();
 
-        self.plot_signal(filtered.view(), "Peaks of valid Pulses", "signal_valid.png", Some(valid_peaks)).unwrap();
+        self.plot_signal(filtered.view(), "Peaks of valid Pulses", "signal_valid.png", Some(valid_peaks));
 
         
         println!("------------------------------------");
@@ -152,7 +162,7 @@ impl Analysis {
                 let end_trough = w[1];
                 
                 let pulse = signal.slice(s![start_trough..=end_trough]);
-                let index_peak = pulse.iter().enumerate().max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap()).unwrap().0;
+                let index_peak = pulse.iter().enumerate().max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap().0;
                 
                 Pulse::new(signal, start_trough, start_trough + index_peak, end_trough)
             }).collect()
@@ -171,12 +181,12 @@ impl Analysis {
             (amplitude_valid, trough_depth_valid, pulse_width_valid)
         }).collect()
     }
-    
-    fn plot_signal(&self, signal: ArrayView1<f64>, title: &str, filename: &str, points: Option<Vec<usize>>) -> Result<(), Box<dyn Error>> {
+
+    fn plot_signal(&self, signal: ArrayView1<f64>, title: &str, filename: &str, points: Option<Vec<usize>>)  {
         if let Some(f) = &self.plotter {
-            f(signal, title, filename, points)
-        } else {
-            Ok(())
+            f(signal, title, filename, points).unwrap_or_else(|e| {
+                eprintln!("Error plotting {}: {}", filename, e);
+            });
         }
     }
 }

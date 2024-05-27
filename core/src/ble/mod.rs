@@ -132,7 +132,11 @@ impl Ble {
                 //println!("Received data notification, HEX DUMP: {:?}", value.iter().map(|x| format!("{:02x} ", x)).collect::<String>());
                 let decoded = decoder(value);
                 
-                event_publisher.send(ExternalBleEvent::DataReceived(decoded)).await.unwrap();
+                event_publisher.send(ExternalBleEvent::DataReceived(decoded)).await.unwrap_or_else(|e| {
+                    println!("Error sending data to event publisher: {:?}", e.to_string());
+                    // if is SendError{}, print details
+                    
+                });
             }
             _ => println!(
                 "Received notification from an unknown characteristic: {:?}",
@@ -278,7 +282,7 @@ impl Ble {
                 for characteristic in &service.characteristics {
                     if characteristic.uuid == characteristic_uuid_data {
                         // HACK: first_data should REALLY be readable, dummy value for now
-                        first_data = if serial == 72 {vec![1; 17]} else {vec![0; 17]};
+                        first_data = if serial == 72 {vec![1; 25]} else {vec![0; 25]};
                         
                         //first_data = device.read(characteristic).await?;
                         println!("First data: {:?}", first_data);
@@ -292,7 +296,7 @@ impl Ble {
     }
 
     fn temp_create_channels(id: String, first_data: &Vec<u8>) -> Result<(Vec<Channel>, DatapointDecoder), Box<dyn Error>> {
-        if first_data.len() != 17 {
+        if first_data.len() != 25 {
             println!("First data length: {}", first_data.len());
             return Err("Invalid first data length".into());
         }

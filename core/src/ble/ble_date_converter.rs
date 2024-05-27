@@ -14,7 +14,7 @@ pub fn time_to_ble_data(current_time: DateTime<Utc>) -> Vec<u8> {
     let microsecond = current_time.timestamp_subsec_micros();
     let fractions_of_second =
         (((microsecond as f64) / U16_MICROSECOND_STEP).round() as u16).to_le_bytes();
-    let day_of_week = current_time.weekday().num_days_from_monday() as u8;
+    let day_of_week = current_time.weekday().num_days_from_monday() as u8 + 1;
 
     vec![
         year_bytes[0],

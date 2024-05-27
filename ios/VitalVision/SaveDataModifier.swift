@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import UniformTypeIdentifiers
 
 struct SaveDataModifier: ViewModifier {
     @Binding var channelData: [Int32?]?
@@ -34,7 +35,7 @@ struct SaveDataModifier: ViewModifier {
     private func showSaveDialog() {
         #if os(macOS)
         let savePanel = NSSavePanel()
-        savePanel.allowedFileTypes = ["bin"]
+        savePanel.allowedContentTypes = [UTType(filenameExtension: "bin")!]
         savePanel.nameFieldStringValue = filename
         savePanel.begin { response in
             if response == .OK, let url = savePanel.url {

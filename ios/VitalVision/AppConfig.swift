@@ -29,8 +29,8 @@ struct AppConfig {
     @AppStorage("ecgFilterCutoffLow") var ecgFilterCutoffLow: Double = 0.6
     @AppStorage("ecgFilterOrder") var ecgFilterOrder: Int = 1
     @AppStorage("ecgRPeakProminenceMadMultiple") var ecgRPeakProminenceMadMultiple: Double = 12.0
-    @AppStorage("ecgRPeakDistance") var ecgRPeakDistance: Int = 5
-    @AppStorage("ecgRPeakPlateau") var ecgRPeakPlateau: Int = 0
+    @AppStorage("ecgRPeakDistance") var ecgRPeakDistance: Int = 10
+    @AppStorage("ecgRPeakPlateau") var ecgRPeakPlateau: Int = 3
     @AppStorage("ecgHRRangeLow") var ecgHRRangeLow: Double = 40.0
     @AppStorage("ecgHRRangeHigh") var ecgHRRangeHigh: Double = 200.0
     @AppStorage("ecgHRMaxDiff") var ecgHRMaxDiff: Double = 20.0

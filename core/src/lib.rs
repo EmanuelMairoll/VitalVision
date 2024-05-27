@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::Arc;
 use ndarray::ArrayView1;
@@ -39,6 +40,9 @@ pub enum ChannelType {
     PPG,
 }
 
+pub type ECGAnalysisParameters = ecg::Parameters;
+pub type PPGAnalysisParameters = ppg::Parameters;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct VVCoreConfig {
     pub hist_size_api: u32,
@@ -49,30 +53,6 @@ pub struct VVCoreConfig {
     pub analysis_interval_points: u32,
     pub ecg_analysis_params: ECGAnalysisParameters,
     pub ppg_analysis_params: PPGAnalysisParameters,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ECGAnalysisParameters {
-    pub sampling_frequency: f64,
-    pub filter_cutoff_low: f64,
-    pub filter_order: u32,
-    pub r_peak_prominence_mad_multiple: f64,
-    pub r_peak_distance: u32,
-    pub r_peak_plateau: u32,
-    pub hr_min: f64,
-    pub hr_max: f64,
-    pub hr_max_diff: f64,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct PPGAnalysisParameters {
-    pub sampling_frequency: f64,
-    pub filter_cutoff_low: f64,
-    pub filter_cutoff_high: f64,
-    pub filter_order: u32,
-    pub envelope_range: u16,
-    pub amplitude_min: i32,
-    pub amplitude_max: i32,
 }
 
 pub trait VVCoreDelegate: Send + Sync {
@@ -164,7 +144,7 @@ impl VVCore {
         
         let ecg_analysis = ecg::Analysis {
             params: self.config.ecg_analysis_params.clone(),
-            plotter: Some(Box::new(VVCore::plot_signal)) 
+            plotter: None // Some(Box::new(VVCore::plot_signal)) 
         };
 
         let ppg_analysis = ppg::Analysis {
@@ -173,9 +153,14 @@ impl VVCore {
         };
 
         let storage_handler = self.rt.spawn(async move {
+            println!("Starting storage handler");
             loop {
-                let event = ble_rx.recv().await.unwrap();
-                match event {
+                let event = ble_rx.recv().await;
+                if event.is_none() {
+                    break;
+                }
+                
+                match event.unwrap() {
                     ExternalBleEvent::DeviceConnected(device) => {
                         let mut device_storage = device_storage.write().await;
                         device_storage.insert(device.id.clone(), device.clone());
@@ -190,17 +175,18 @@ impl VVCore {
                     }
                     ExternalBleEvent::DeviceDisconnected(uuid) => {
                         let mut device_storage = device_storage.write().await;
-                        let device = device_storage.get_mut(&uuid).unwrap();
-                        device.connected = false;
-                        let channels = device.channels.clone();
-                        delegate.devices_changed(device_storage.values().cloned().collect());
-                        drop(device_storage);
+                        if let Some(device) = device_storage.get_mut(&uuid) {
+                            device.connected = false;
+                            let channels = device.channels.clone();
+                            delegate.devices_changed(device_storage.values().cloned().collect());
+                            drop(device_storage);
 
-                        let mut data_storage = data_storage.write().await;
-                        for channel in channels.iter() {
-                            data_storage.remove_channel(channel.id.clone());
+                            let mut data_storage = data_storage.write().await;
+                            for channel in channels.iter() {
+                                data_storage.remove_channel(channel.id.clone());
+                            }
+                            drop(data_storage);
                         }
-                        drop(data_storage);
                     }
                     ExternalBleEvent::BatteryLevelChanged(uuid, battery) => {
                         let mut device_storage = device_storage.write().await;
@@ -223,7 +209,9 @@ impl VVCore {
 
                                 if datapoint_counter > analysis_interval {
                                     println!("Analyzing data for {}", uuid);
-                                    let quality: Option<f32> = match channel_type {
+                                    
+                                    // TODO: Clean this up, analysis should output a single result
+                                    let mut quality: Option<f32> = match channel_type {
                                         ChannelType::ECG => {
                                             // filter map
                                             let as_f64 = window_analysis.iter().filter_map(|x| x.map(|x| x as f64)).collect::<Vec<f64>>();
@@ -240,6 +228,14 @@ impl VVCore {
                                         },
                                         _ => None,
                                     };
+                                    
+                                    // treat nan as 0.0
+                                    if let Some(quality_nan) = quality {
+                                        if quality_nan.is_nan() {
+                                            quality = Some(0.0);
+                                        }
+                                    }
+                                    
                                     analysis_results.insert(uuid, quality);
                                     data_storage.reset_counter(uuid.clone());
                                 }
@@ -287,8 +283,8 @@ impl VVCore {
         let root = BitMapBackend::new(file_path, (640, 480)).into_drawing_area();
         root.fill(&WHITE)?;
 
-        let max_value = *data.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(&0f64);
-        let min_value = *data.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(&0f64);
+        let max_value = *data.iter().max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap_or(&0f64);
+        let min_value = *data.iter().min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap_or(&0f64);
 
         let mut chart = ChartBuilder::on(&root)
             .caption(title, ("sans-serif", 40).into_font())

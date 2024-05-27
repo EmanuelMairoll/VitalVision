@@ -19,12 +19,15 @@ extension Channel {
         guard let quality = self.signalQuality else {
             return nil
         }
-        if quality < 0.5 {
+        switch quality {
+        case 0..<0.5:
             return "Poor"
-        } else if quality < 0.8 {
+        case 0.5..<0.75:
             return "Fair"
-        } else {
+        case 0.75...1:
             return "Good"
+        default:
+            return nil
         }
     }
 }
@@ -79,8 +82,8 @@ struct ChannelDetailView: View {
     // Computed property to calculate the domain based on the range
     var channelDataDomain: some ScaleDomain {
         let rangeTwoThirds = Int64(Double(channelDataRange) * (2.0 / 3.0))
-        let minVal: UInt16 = UInt16(max(0, Int64(channelDataMin) - rangeTwoThirds))
-        let maxVal: UInt16 = UInt16(min(Int64(channelDataMax) + rangeTwoThirds, Int64(UInt16.max)))
+        let minVal = Int32(max(Int64(Int32.min), Int64(channelDataMin) - rangeTwoThirds))
+        let maxVal = Int32(min(Int64(channelDataMax) + rangeTwoThirds, Int64(Int32.max)))
         return [minVal, maxVal]
     }
 

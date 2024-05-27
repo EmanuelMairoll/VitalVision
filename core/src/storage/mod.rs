@@ -47,19 +47,19 @@ impl DataStorage {
     }
     
     pub fn add_datapoint(&mut self, uuid: String, data_points: Vec<i32>) -> Option<(&[Option<i32>], &[Option<i32>], ChannelType, u32)> {
-        if !self.data.contains_key(&uuid) {
-            return None;
+        return if let Some(channel_data) = self.data.get_mut(&uuid) {
+            for data_point in data_points.iter() {
+                channel_data.data.write(Some(*data_point));
+                channel_data.datapoint_counter += 1;
+            }
+
+            let ret_a = channel_data.data.get_slice_with_len(self.ret_a_len);
+            let ret_b = channel_data.data.get_slice_with_len(self.ret_b_len);
+            
+            Some((ret_a, ret_b, channel_data.data_type.clone(), channel_data.datapoint_counter))
+        } else {
+            None
         }
-        
-        let channel_data = self.data.get_mut(&uuid).unwrap();
-        for data_point in data_points.iter() {
-            channel_data.data.write(Some(*data_point));
-            channel_data.datapoint_counter += 1;
-        }
-        
-        let ret_a = channel_data.data.get_slice_with_len(self.ret_a_len);
-        let ret_b = channel_data.data.get_slice_with_len(self.ret_b_len);
-        return Some((ret_a, ret_b, channel_data.data_type.clone(), channel_data.datapoint_counter));
     }
     
     pub fn reset_counter(&mut self, uuid: String) {
