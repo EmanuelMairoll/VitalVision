@@ -23,6 +23,7 @@
 		88A2A8F42BA9AAFB0090C703 /* VitalVisionUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A2A8F32BA9AAFB0090C703 /* VitalVisionUITestsLaunchTests.swift */; };
 		88C362062BAE38F400252ADF /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 88C362052BAE38F400252ADF /* CoreBluetooth.framework */; };
 		88F993BD2C039C4800B598CC /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88F993BC2C039C4800B598CC /* AppConfig.swift */; };
+		88F993C52C049B7400B598CC /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88F993C42C049B7400B598CC /* NotificationService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +65,7 @@
 		88C362052BAE38F400252ADF /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.4.sdk/System/Library/Frameworks/CoreBluetooth.framework; sourceTree = DEVELOPER_DIR; };
 		88C362072BAE3D8200252ADF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		88F993BC2C039C4800B598CC /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		88F993C42C049B7400B598CC /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +141,7 @@
 				88A2A8D92BA9AAFB0090C703 /* Assets.xcassets */,
 				88A2A8DB2BA9AAFB0090C703 /* VitalVision.entitlements */,
 				88A2A8DC2BA9AAFB0090C703 /* Preview Content */,
+				88F993C42C049B7400B598CC /* NotificationService.swift */,
 			);
 			path = VitalVision;
 			sourceTree = "<group>";
@@ -306,6 +309,7 @@
 				88A2A8D62BA9AAFA0090C703 /* VitalVisionApp.swift in Sources */,
 				88344C672BAEF8480036DA0E /* VitalVisionCore.swift in Sources */,
 				883521F32BAA3F9B00632E56 /* DeviceView.swift in Sources */,
+				88F993C52C049B7400B598CC /* NotificationService.swift in Sources */,
 				883521F02BA9C0A800632E56 /* vvcore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -8,15 +8,20 @@
 import SwiftUI
 
 struct AppConfig {
+    // Main Settings
     @AppStorage("histSizeApi") var histSizeApi: Int = 500
     @AppStorage("histSizeAnalytics") var histSizeAnalytics: Int = 500
     @AppStorage("maxInitialRttMs") var maxInitialRttMs: Int = 100
     @AppStorage("syncIntervalSec") var syncIntervalSec: Int = 60
     @AppStorage("analysisIntervalPoints") var analysisIntervalPoints: Int = 60
+    @AppStorage("notificationQualityThreshold") var notificationQualityThreshold: Double = 0.5
+    @AppStorage("notificationDurationThresholdSec") var notificationDurationThresholdSec: Int = 300
     @AppStorage("enableMockDevices") var enableMockDevices: Bool = false
     
+    // Configurable via Device Detail View
     @AppStorage("additionalDeviceData") var additionalData: [String: AdditionalDeviceData] = [:]
 
+    // Advanced settings
     @AppStorage("ppgSamplingFrequency") var ppgSamplingFrequency: Double = 30.0
     @AppStorage("ppgFilterCutoffLow") var ppgFilterCutoffLow: Double = 1.0
     @AppStorage("ppgFilterCutoffHigh") var ppgFilterCutoffHigh: Double = 10.0

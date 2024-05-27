@@ -49,7 +49,7 @@ impl Analysis {
         self.plot_signal(filtered.view(), "Filtered Signal", "signal_filt.png", None);
 
         let mad = Analysis::median_absolute_deviation(filtered.view());
-        println!("Median Absolute Deviation: {}", mad);
+        // println!("Median Absolute Deviation: {}", mad);
         
         let peaks = self.find_peaks(mad, filtered.view());
 
@@ -133,7 +133,7 @@ impl Analysis {
         let distance = self.params.r_peak_distance as usize;
         let plateau = self.params.r_peak_plateau as usize;
         
-        println!("Prominence: {}, Distance: {}, Plateau: {}", multiplier * mad, distance, plateau);
+        //println!("Prominence: {}, Distance: {}, Plateau: {}", multiplier * mad, distance, plateau);
         
         let slice: &[f64] = signal.as_slice().unwrap_or_else(|| {
             eprintln!("Failed to convert signal to slice");

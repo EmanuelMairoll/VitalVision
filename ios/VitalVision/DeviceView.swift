@@ -4,6 +4,8 @@ struct AdditionalDeviceData: Codable {
     var participant: String?
     var location: String?
     var other: String?
+    
+    var watchIds: [String] = []
 }
 
 struct DevicePreviewView: View {
@@ -17,20 +19,28 @@ struct DevicePreviewView: View {
             HStack {
                 VStack(alignment: .leading) {
                     Text("\(device.name) (\(device.serial))" )
-                    Text(device.id)
-                        .font(.caption)
-                        .lineLimit(1)
+                    let grouped = Dictionary(grouping: device.channels, by: { $0.channelType.description })
+                    HStack {
+                        ForEach(grouped.keys.sorted(), id: \.self) { key in
+                            Text(key)
+                                .font(.caption)
+                                .lineLimit(1)
+                            ForEach(grouped[key]!, id: \.id) { channel in
+                                StatusCircle(color: channel.qualityColor, size: 6.0)
+                            }
+                        }
+                    }
                 }
                 Spacer()
                 Text("\(device.driftUs / 1000)ms")
                     .font(.caption)
                 BatteryIndicator(level: device.battery)
-                StatusIndicator(isOk: device.connected)
+                StatusCircle(color: device.connected ? .green : .red)
             }
         }
-        .id(device.id)
     }
 }
+
 
 struct DeviceDetailView: View {
     let core: VitalVisionCore
@@ -41,10 +51,10 @@ struct DeviceDetailView: View {
     var body: some View {
         List {
             Section(header: Text("Device Info")) {
-                Text("Serial: \(device.serial)")
-                Text("Connected: \(device.connected ? "YES" : "NO")")
-                Text("Time Drift: \(device.driftUs / 1000)ms")
-                Text("Battery Level: \(device.battery)%")
+                ListRow(key: "Serial", value: String(device.serial))
+                ListRow(key: "Connected", value: device.connected ? "YES" : "NO")
+                ListRow(key: "Sync Round Trip Delay", value: "\(device.driftUs / 1000)ms")
+                ListRow(key: "Battery Level", value: "\(device.battery)%")
             }
             Section(header: Text("Additional Data")) {
                 TextField("Participant", text: $additionalData.participant ?? "")
@@ -60,7 +70,22 @@ struct DeviceDetailView: View {
                     Divider()
                     #else
                     NavigationLink(destination: ChannelDetailView(core: core, channel: channel)) {
-                        ChannelPreviewView(channel: channel)
+                        ChannelPreviewView(channel: channel, isWatched: additionalData.watchIds.contains(channel.id))
+                    }
+                    .contextMenu {
+                        if additionalData.watchIds.contains(channel.id) {
+                            Button(action: {
+                                additionalData.watchIds.removeAll { $0 == channel.id }
+                            }) {
+                                Label("Unwatch", systemImage: "bell.slash")
+                            }
+                        } else {
+                            Button(action: {
+                                additionalData.watchIds.append(channel.id)
+                            }) {
+                                Label("Watch", systemImage: "bell")
+                            }
+                        }
                     }
                     #endif
                 }
@@ -71,6 +96,19 @@ struct DeviceDetailView: View {
     }
 }
 
+struct ListRow: View {
+    let key: String
+    let value: String
+    
+    var body: some View {
+        HStack {
+            Text(key)
+            Spacer()
+            Text(value)
+        }
+    }
+}
+
 func ??<T>(lhs: Binding<Optional<T>>, rhs: T) -> Binding<T> {
     Binding(
         get: { lhs.wrappedValue ?? rhs },
@@ -78,13 +116,14 @@ func ??<T>(lhs: Binding<Optional<T>>, rhs: T) -> Binding<T> {
     )
 }
 
-struct StatusIndicator: View {
-    var isOk: Bool
+struct StatusCircle: View {
+    var color: Color
+    var size: CGFloat = 10.0
     
     var body: some View {
         Circle()
-            .fill(isOk ? Color.green : Color.orange)
-            .frame(width: 10, height: 10)
+            .fill(color)
+            .frame(width: size, height: size)
     }
 }
 

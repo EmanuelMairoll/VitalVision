@@ -1,13 +1,23 @@
 import Combine
+import Foundation
 
 class VitalVisionCore {
 
-    public let devicesSubject: PassthroughSubject<[Device], Never>  = PassthroughSubject<[Device], Never>()
-    public let dataSubject: PassthroughSubject<(channelUuid: String, data: [Int32?]), Never>  = PassthroughSubject<(channelUuid: String, data: [Int32?]), Never>()
-     
+    public let devicesSubject: PassthroughSubject<[Device], Never>
+    public let dataSubject: PassthroughSubject<(channelUuid: String, data: [Int32?]), Never>
+        
+    let notifications: NotificationService
+
     var appliedConfig: VvCoreConfig? = nil
     var vvcore: VvCore?
 
+    init(){
+        devicesSubject = PassthroughSubject<[Device], Never>()
+        dataSubject = PassthroughSubject<(channelUuid: String, data: [Int32?]), Never>()
+        
+        notifications = NotificationService(devicesSubject: devicesSubject)
+    }
+    
     // not using VitalVisionCore as callback directly to break ARC cycle
     class Delegate: VvCoreDelegate {
         init(devicesSubject: PassthroughSubject<[Device], Never>, dataSubject: PassthroughSubject<(channelUuid: String, data: [Int32?]), Never>) {
@@ -67,6 +77,10 @@ class VitalVisionCore {
                 amplitudeMax: Int32(config.ppgAmplitudeMax)
             )
         )
+        
+        notifications.qualityThreshold = Float(config.notificationQualityThreshold)
+        notifications.durationThreshold = TimeInterval(config.notificationDurationThresholdSec)
+        notifications.watchedChannels = Set(config.additionalData.values.flatMap { $0.watchIds })
         
         // assume config has changed
         guard appliedConfig != coreConfig else {

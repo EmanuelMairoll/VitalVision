@@ -21,6 +21,7 @@ mod ble_date_converter;
 pub mod mock;
 
 pub struct Ble {
+    max_initial_rtt_ms: u32,
     event_publisher: Sender<ExternalBleEvent>,
     tx: Arc<Mutex<Option<Sender<InternalBleEvent>>>>,
 }
@@ -43,8 +44,9 @@ pub enum ExternalBleEvent {
 type DatapointDecoder = Box<dyn Fn(Vec<u8>) -> HashMap<String, Vec<i32>> + Send + Sync>;
 
 impl Ble {
-    pub fn new(event_publisher: Sender<ExternalBleEvent>) -> Self {
+    pub fn new(event_publisher: Sender<ExternalBleEvent>, max_initial_rtt_ms: u32) -> Self {
         Self {
+            max_initial_rtt_ms,
             event_publisher,
             tx: Arc::new(Mutex::new(None)),
         }
@@ -72,7 +74,7 @@ impl Ble {
         let mut combined_stream = select(event_stream, notification_stream);
 
         let event_publisher = self.event_publisher.clone();
-
+        let max_initial_rtt_ms = self.max_initial_rtt_ms;
         while let Some(event) = combined_stream.next().await {
             let event_publisher = event_publisher.clone();
             match event {
@@ -80,7 +82,7 @@ impl Ble {
                     println!("Device discovered: {:?}", id);
                     let device = central.peripheral(&id).await.unwrap();
                     tokio::spawn(async move {
-                        Ble::handle_discovered_device(&device, event_publisher)
+                        Ble::handle_discovered_device(&device, event_publisher, max_initial_rtt_ms)
                             .await.unwrap();
                         println!("Device handled");
                     });
@@ -101,7 +103,7 @@ impl Ble {
                         tokio::spawn(async move {
                             let id = device.id().to_string();
                             println!("Syncing time for device: {:?}", id);
-                            let rtt = Ble::sync_time_for_device(&device).await.unwrap();
+                            let rtt = Ble::sync_time_for_device(&device, max_initial_rtt_ms).await.unwrap();
 
                             event_publisher.send(ExternalBleEvent::DriftChanged(id, rtt)).await.unwrap();
                         });
@@ -148,6 +150,7 @@ impl Ble {
     async fn handle_discovered_device(
         device: &impl Peripheral,
         event_publisher: Sender<ExternalBleEvent>,
+        max_initial_rtt_ms: u32,
     ) -> Result<(), Box<dyn Error>> {
         device.connect().await?;
         //println!("Connected to device: {:?}", device.id());
@@ -156,7 +159,7 @@ impl Ble {
 
         let id = device.id().to_string();
 
-        let drift = Ble::sync_time_for_device(device).await?;
+        let drift = Ble::sync_time_for_device(device, max_initial_rtt_ms).await?;
 
         let (serial, model, battery, first_data) =
             Ble::get_device_information_and_subscribe(device).await?;
@@ -193,31 +196,44 @@ impl Ble {
         Ok(())
     }
 
-    async fn sync_time_for_device(device: &impl Peripheral) -> Result<i64, Box<dyn Error>> {
+    async fn sync_time_for_device(device: &impl Peripheral, max_initial_rtt_ms: u32) -> Result<i64, Box<dyn Error>> {
         let time_service_uuid = Uuid::parse_str("00001806-0000-1000-8000-00805f9b34fb")?;
         let time_characteristic_uuid = Uuid::parse_str("00002a2d-0000-1000-8000-00805f9b34fb")?;
-
+        
         //return Ok(42);
+
+        if !device.is_connected().await? {
+            return Err("Device disconnected".into());
+        }
 
         for service in device.services() {
             if service.uuid == time_service_uuid {
                 for characteristic in &service.characteristics {
                     if characteristic.uuid == time_characteristic_uuid {
-                        let time_to_set = Utc::now();
-                        let data_to_set = time_to_ble_data(time_to_set);
-                        //println!("Writing wo response");
-                        println!("HEX: {:?}", data_to_set.iter().map(|x| format!("{:02X}", x)).collect::<String>());
-                        device
-                            .write(characteristic, &data_to_set, WriteType::WithoutResponse)
-                            .await?;
-                        //print!("done Writing");
+                        let mut rtt = -1;
+                        
+                        // try at max 5 times
+                        for _ in 0..5 {
+                            let time_to_set = Utc::now();
+                            let data_to_set = time_to_ble_data(time_to_set);
+                            //println!("Writing wo response");
+                            //println!("HEX: {:?}", data_to_set.iter().map(|x| format!("{:02X}", x)).collect::<String>());
+                            device
+                                .write(characteristic, &data_to_set, WriteType::WithoutResponse)
+                                .await?;
+                            //print!("done Writing");
 
-                        let data_read = device.read(characteristic).await?;
-                        let time_to_compare = Utc::now();
+                            let data_read = device.read(characteristic).await?;
+                            let time_to_compare = Utc::now();
 
-                        let time_read = ble_data_to_time(&data_read)?;
+                            let time_read = ble_data_to_time(&data_read)?;
 
-                        let rtt = time_to_compare.timestamp_micros() - time_read.timestamp_micros();
+                            rtt = time_to_compare.timestamp_micros() - time_read.timestamp_micros();
+
+                            if rtt.abs() < (max_initial_rtt_ms * 1000) as i64 {
+                                return Ok(rtt);
+                            }
+                        }
 
                         return Ok(rtt);
                     }

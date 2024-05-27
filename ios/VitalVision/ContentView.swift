@@ -14,6 +14,7 @@ struct ContentView: View {
     @State var core:VitalVisionCore = VitalVisionCore()
     @State var devices: [Device]? = nil
     @State var sortBy = SortBy.timeDiscovered
+
     
     var sortedDevices: [String:[Device]]? {
         guard let devices = devices else { return nil }
@@ -40,10 +41,18 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             VStack {
-                if let devices = devices {
-                    List(devices, id: \.id, selection: $selectedDevice) { device in
-                        DevicePreviewView(core: core, device: device, additionalData: .constant(AdditionalDeviceData()))
-                        
+                if let sortedDevices = sortedDevices {
+                    List(selection: $selectedDevice) {
+                        ForEach(sortedDevices.keys.sorted(), id: \.self) { key in
+                            Section(header: Text(key)) {
+                                ForEach(sortedDevices[key]!, id: \.id) { device in
+                                    DevicePreviewView(core: core, device: device, additionalData: Binding (
+                                        get: { appConfig.additionalData[device.id] ?? AdditionalDeviceData() },
+                                        set: { appConfig.additionalData[device.id] = $0 }
+                                    ))
+                                }
+                            }
+                        }
                     }
                     .navigationTitle("BLE Devices")
                 } else {
@@ -55,6 +64,19 @@ struct ContentView: View {
                 ToolbarItem(placement: .automatic) {
                     SettingsLink {
                         Label("Settings", systemImage: "gearshape.fill")
+                    }
+                }
+                ToolbarItem(placement: .automatic) {
+                    Menu {
+                        Picker("Sort by", selection: $sortBy) {
+                            Text("Time Discovered").tag(SortBy.timeDiscovered)
+                            Text("ID").tag(SortBy.id)
+                            Text("Participant").tag(SortBy.participant)
+                            Text("Location").tag(SortBy.location)
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Label("Sort by", systemImage: "list.bullet")
                     }
                 }
                 ToolbarItem(placement: .automatic) {

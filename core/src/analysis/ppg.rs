@@ -108,7 +108,7 @@ impl Analysis {
 
         self.plot_signal(filtered.view(), "Peaks of valid Pulses", "signal_valid.png", Some(valid_peaks));
 
-        
+        /*
         println!("------------------------------------");
 
         println!("Amplitudes: {:?}", pulses.iter().map(|p| p.amplitude()).collect::<Vec<f64>>());
@@ -120,6 +120,7 @@ impl Analysis {
         println!("Valid pulses: {:?}", valid_by_thresholds);
         
         println!("------------------------------------");
+        */
         
         Results {
             hr_estimate: vec![],

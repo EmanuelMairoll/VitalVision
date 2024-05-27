@@ -106,9 +106,10 @@ impl VVCore {
         }
 
         let rt = &self.rt;
-
+        
         let (ble_tx, mut ble_rx) = tokio::sync::mpsc::channel(1000);
-        let ble = Arc::new(ble::Ble::new(ble_tx));
+        let max_initial_rtt_ms = self.config.max_initial_rtt_ms;
+        let ble = Arc::new(ble::Ble::new(ble_tx, max_initial_rtt_ms));
 
         let ble_clone = ble.clone();
         let ble_loop = rt.spawn(async move {
@@ -208,7 +209,7 @@ impl VVCore {
                                 delegate.new_data(uuid.clone(), window_api.to_vec());
 
                                 if datapoint_counter > analysis_interval {
-                                    println!("Analyzing data for {}", uuid);
+                                    // println!("Analyzing data for {}", uuid);
                                     
                                     // TODO: Clean this up, analysis should output a single result
                                     let mut quality: Option<f32> = match channel_type {
@@ -244,7 +245,7 @@ impl VVCore {
                         drop(data_storage);
 
                         if !analysis_results.is_empty() {
-                            println!("Analysis results: {:?}", analysis_results);
+                            // println!("Analysis results: {:?}", analysis_results);
 
                             let mut device_storage = device_storage.write().await;
                             for device in device_storage.values_mut() { 

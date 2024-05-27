@@ -30,22 +30,40 @@ extension Channel {
             return nil
         }
     }
+    
+    public var qualityColor: Color {
+        guard let quality = self.signalQuality else {
+            return .gray
+        }
+        switch quality {
+        case 0..<0.5:
+            return .red
+        case 0.5..<0.75:
+            return .yellow
+        case 0.75...1:
+            return .green
+        default:
+            return .gray
+        }
+    }
 }
 
 struct ChannelPreviewView: View {
     let channel: Channel
+    let isWatched: Bool
     
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
                 Text(channel.name)
-                Text(channel.id)
-                    .font(.caption)
-                    .lineLimit(1)
             }
             Spacer()
+            if isWatched {
+                Image(systemName: "bell")
+                    .foregroundColor(.accentColor)
+            }
             Text(channel.channelType.description)
-            StatusIndicator(isOk: channel.signalQuality ?? 1.0 > 0.5)
+            StatusCircle(color: channel.qualityColor)
         }
     }
 }
