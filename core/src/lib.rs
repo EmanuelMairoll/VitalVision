@@ -1,8 +1,5 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::Arc;
-use ndarray::ArrayView1;
-use plotters::prelude::*;
 
 use tokio::sync::RwLock;
 use crate::analysis::{ppg, ecg};
@@ -106,7 +103,7 @@ impl VVCore {
         }
 
         let rt = &self.rt;
-        
+
         let (ble_tx, mut ble_rx) = tokio::sync::mpsc::channel(1000);
         let max_initial_rtt_ms = self.config.max_initial_rtt_ms;
         let ble = Arc::new(ble::Ble::new(ble_tx, max_initial_rtt_ms));
@@ -142,7 +139,7 @@ impl VVCore {
         let device_storage = self.device_storage.clone();
         let data_storage = self.data_storage.clone();
         let delegate = self.delegate.clone();
-        
+
         let ecg_analysis = ecg::Analysis {
             params: self.config.ecg_analysis_params.clone(),
             plotter: None // Some(Box::new(VVCore::plot_signal)) 
@@ -160,7 +157,7 @@ impl VVCore {
                 if event.is_none() {
                     break;
                 }
-                
+
                 match event.unwrap() {
                     ExternalBleEvent::DeviceConnected(device) => {
                         let mut device_storage = device_storage.write().await;
@@ -178,6 +175,9 @@ impl VVCore {
                         let mut device_storage = device_storage.write().await;
                         if let Some(device) = device_storage.get_mut(&uuid) {
                             device.connected = false;
+                            for channel in device.channels.iter_mut() {
+                                channel.signal_quality = None;
+                            }
                             let channels = device.channels.clone();
                             delegate.devices_changed(device_storage.values().cloned().collect());
                             drop(device_storage);
@@ -210,7 +210,7 @@ impl VVCore {
 
                                 if datapoint_counter > analysis_interval {
                                     // println!("Analyzing data for {}", uuid);
-                                    
+
                                     // TODO: Clean this up, analysis should output a single result
                                     let mut quality: Option<f32> = match channel_type {
                                         ChannelType::ECG => {
@@ -229,14 +229,14 @@ impl VVCore {
                                         },
                                         _ => None,
                                     };
-                                    
+
                                     // treat nan as 0.0
                                     if let Some(quality_nan) = quality {
                                         if quality_nan.is_nan() {
                                             quality = Some(0.0);
                                         }
                                     }
-                                    
+
                                     analysis_results.insert(uuid, quality);
                                     data_storage.reset_counter(uuid.clone());
                                 }
@@ -248,7 +248,7 @@ impl VVCore {
                             // println!("Analysis results: {:?}", analysis_results);
 
                             let mut device_storage = device_storage.write().await;
-                            for device in device_storage.values_mut() { 
+                            for device in device_storage.values_mut() {
                                 for channel in &mut device.channels { // TODO: This is a bit inefficient
                                     if let Some(Some(result)) = analysis_results.get(&channel.id) {
                                         channel.signal_quality = Some(*result);
@@ -273,43 +273,7 @@ impl VVCore {
 
         let _ = self.event_broadcast.send(VVCoreInternalEvent::SyncTime);
     }
-
-
-    pub fn plot_signal(
-        data: ArrayView1<f64>,
-        title: &str,
-        file_path: &str,
-        points: Option<Vec<usize>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let root = BitMapBackend::new(file_path, (640, 480)).into_drawing_area();
-        root.fill(&WHITE)?;
-
-        let max_value = *data.iter().max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap_or(&0f64);
-        let min_value = *data.iter().min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap_or(&0f64);
-
-        let mut chart = ChartBuilder::on(&root)
-            .caption(title, ("sans-serif", 40).into_font())
-            .margin(5)
-            .x_label_area_size(30)
-            .y_label_area_size(30)
-            .build_cartesian_2d(0..data.len() as i32, min_value..max_value)?;
-
-        chart.configure_mesh().draw()?;
-
-        chart.draw_series(LineSeries::new(
-            data.iter().enumerate().map(|(x, y)| (x as i32, *y)),
-            &RED,
-        ))?;
-
-        if let Some(indexes) = points {
-            chart.draw_series(indexes.into_iter().filter_map(|index| {
-                data.get(index).map(|&value| Circle::new((index as i32, value), 5, &BLUE))
-            }))?;
-        }
-
-        root.present()?;
-        Ok(())
-    }
+}
 
     
-}
+

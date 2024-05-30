@@ -22,10 +22,10 @@ noisy_float = "0.2.0"
 biquad = "0.4.2"
 find_peaks = "0.1.5"
 tokio-stream = "0.1.15"
+
+[dev-dependencies]
 plotters = "0.3.5"
 
 [build-dependencies]
 uniffi_build = "0.26.1"
 uniffi_bindgen = "0.26.1"
-
-[dev-dependencies]
