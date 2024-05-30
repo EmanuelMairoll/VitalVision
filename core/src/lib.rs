@@ -72,6 +72,8 @@ pub struct VVCore {
 #[derive(Debug, PartialEq, Clone)]
 enum VVCoreInternalEvent {
     SyncTime,
+    Pause,
+    Resume,
 }
 
 impl VVCore {
@@ -141,7 +143,7 @@ impl VVCore {
             debug!(logger, "Starting periodic time sync task");
             loop {
                 tokio::time::sleep(tokio::time::Duration::from_secs(sync_interval)).await;
-                ble_clone.sync_time().await;
+                ble_clone.forward_event(VVCoreInternalEvent::SyncTime).await;
             }
         });
 
@@ -151,12 +153,9 @@ impl VVCore {
         let global_events = rt.spawn(async move {
             debug!(logger, "Starting global event handler task");
             loop {
-                let event = rx.recv().await.unwrap();
-                match event {
-                    VVCoreInternalEvent::SyncTime => {
-                        ble_clone.sync_time().await;
-                    }
-                }
+                // forward SyncTime, Pause, Resume events to BLE
+                let event = rx.recv().await;
+                ble_clone.forward_event(event.unwrap()).await;
             }
         });
 
@@ -203,6 +202,7 @@ impl VVCore {
                         let mut device_storage = device_storage.write().await;
                         if let Some(device) = device_storage.get_mut(&uuid) {
                             device.connected = false;
+                            device.drift_us = 0;
                             for channel in device.channels.iter_mut() {
                                 channel.signal_quality = None;
                             }
@@ -301,6 +301,22 @@ impl VVCore {
         }
 
         let _ = self.event_broadcast.send(VVCoreInternalEvent::SyncTime);
+    }
+    
+    pub fn pause(&self) {
+        if self.config.enable_mock_devices {
+            return;
+        }
+
+        let _ = self.event_broadcast.send(VVCoreInternalEvent::Pause);
+    }
+    
+    pub fn resume(&self) {
+        if self.config.enable_mock_devices {
+            return;
+        }
+
+        let _ = self.event_broadcast.send(VVCoreInternalEvent::Resume);
     }
 }
 

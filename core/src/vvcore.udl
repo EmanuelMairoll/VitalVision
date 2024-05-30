@@ -71,4 +71,8 @@ interface VVCore {
     void start_ble_loop();
 
     void sync_time();
+    
+    void pause();
+    
+    void resume();
 };

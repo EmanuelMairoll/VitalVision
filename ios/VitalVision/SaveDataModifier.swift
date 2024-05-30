@@ -28,6 +28,19 @@ struct SaveDataModifier: ViewModifier {
                             Text(channelName)
                         }
                     }
+                    #if os(iOS)
+                    .alert("Save Data", isPresented: $showingSaveDialog) {
+                        TextField("Filename", text: $filename)
+                                Button("OK", action: {
+                                    let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                                    let fileURL = documentDirectory.appendingPathComponent("\(self.filename).bin")
+                                    saveData(at: fileURL)
+                                })
+                                Button("Cancel", role: .cancel) { }
+                            } message: {
+                                Text("Enter a name for the data file.")
+                            }
+                    #endif
                 }
             }
     }
@@ -59,7 +72,6 @@ struct SaveDataModifier: ViewModifier {
         }
     }
 
-    // iOS part for modal alert dialog
     private var alert: Alert {
         Alert(
             title: Text("Save Data"),

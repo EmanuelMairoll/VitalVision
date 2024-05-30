@@ -14,7 +14,7 @@ struct ContentView: View {
     @State var core:VitalVisionCore = VitalVisionCore()
     @State var devices: [Device]? = nil
     @State var sortBy = SortBy.timeDiscovered
-
+    @State var paused = false
     
     var sortedDevices: [String:[Device]]? {
         guard let devices = devices else { return nil }
@@ -155,6 +155,18 @@ struct ContentView: View {
                     }
                 }
                 
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        if paused {
+                            core.resume()
+                        } else {
+                            core.pause()
+                        }
+                        paused.toggle()
+                    } label: {
+                        Image(systemName: paused ? "play.fill" : "pause.fill")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         core.syncTime()

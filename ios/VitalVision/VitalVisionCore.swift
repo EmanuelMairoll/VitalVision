@@ -102,4 +102,12 @@ class VitalVisionCore {
     func syncTime(){
         vvcore?.syncTime()
     }
+    
+    func pause(){
+        vvcore?.pause()
+    }
+    
+    func resume(){
+        vvcore?.resume()
+    }
 }

@@ -31,7 +31,7 @@ pub struct Ble {
 #[derive(Clone, Debug)]
 enum InternalBleEvent {
     CentralEvent(CentralEvent),
-    SyncTime,
+    ForwardedEvent(VVCoreInternalEvent),
 }
 
 #[derive(Clone, Debug)]
@@ -107,7 +107,7 @@ impl Ble {
                     trace!(logger, "Device disconnected"; "id" => format!("{:?}", id));
                     event_publisher.send(ExternalBleEvent::DeviceDisconnected(id.to_string())).await.unwrap();
                 }
-                InternalBleEvent::SyncTime => {
+                InternalBleEvent::ForwardedEvent(VVCoreInternalEvent::SyncTime) => {
                     trace!(logger, "Syncing time for all devices");
 
                     for device in central.peripherals().await.unwrap() {
@@ -127,16 +127,28 @@ impl Ble {
                         });
                     }
                 }
+                InternalBleEvent::ForwardedEvent(VVCoreInternalEvent::Pause) => {
+                    trace!(logger, "Pausing BLE");
+                    central.stop_scan().await.unwrap();
+                    // disconnect all devices
+                    for device in central.peripherals().await.unwrap() {
+                        device.disconnect().await.unwrap();
+                    }
+                }
+                InternalBleEvent::ForwardedEvent(VVCoreInternalEvent::Resume) => {
+                    trace!(logger, "Resuming BLE");
+                    central.start_scan(ScanFilter { services: vec![SERVICE_DATA] }).await.unwrap();
+                }
                 _ => {}
             }
         }
         Ok(())
     }
 
-    pub async fn sync_time(&self) {
-        let tx = self.tx.lock().await;
-        if let Some(tx) = &*tx {
-            tx.send(InternalBleEvent::SyncTime).await.unwrap();
+    pub async fn forward_event(&self, event: VVCoreInternalEvent) {
+        let tx_lock = self.tx.lock().await;
+        if let Some(tx) = &*tx_lock {
+            tx.send(InternalBleEvent::ForwardedEvent(event)).await.unwrap();
         }
     }
 
