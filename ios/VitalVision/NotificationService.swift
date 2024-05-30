@@ -12,9 +12,9 @@ import UserNotifications
 class NotificationService {
     var devicesSubscription: AnyCancellable?
 
-    var qualityThreshold: Float? = nil
-    var durationThreshold: TimeInterval? = nil
-    var watchedChannels: Set<String> = []
+    public var qualityThreshold: Float? = nil
+    public var durationThreshold: TimeInterval? = nil
+    public var watchedChannels: Set<String> = []
 
     // Tracks channels and the time their signal quality fell below the threshold, as well as whether a notification has been sent for that channel
     private var trackedChannels: [String: (Date, Bool)] = [:]
@@ -43,6 +43,10 @@ class NotificationService {
         
         for device in devices {
             for channel in device.channels {
+                if !watchedChannels.contains(channel.id) {
+                    continue
+                }
+                
                 guard let signalQuality = channel.signalQuality, signalQuality < qualityThreshold else {
                     trackedChannels.removeValue(forKey: channel.id)
                     continue
