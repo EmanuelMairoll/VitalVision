@@ -18,7 +18,7 @@ struct DevicePreviewView: View {
         NavigationLink(destination: DeviceDetailView(core: core, device: device, additionalData: $additionalData)) {
             HStack {
                 VStack(alignment: .leading) {
-                    Text("\(device.name) (\(device.serial))" )
+                    Text("**(\(device.serial))** \(device.name)" )
                     let grouped = Dictionary(grouping: device.channels, by: { $0.channelType.description })
                     HStack {
                         ForEach(grouped.keys.sorted(), id: \.self) { key in
@@ -32,10 +32,17 @@ struct DevicePreviewView: View {
                     }
                 }
                 Spacer()
-                Text("\(device.driftUs / 1000)ms")
-                    .font(.caption)
-                BatteryIndicator(level: device.battery)
-                StatusCircle(color: device.connected ? .green : .red)
+                HStack {
+                    VStack {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .frame(height: 10.0)
+                        Text("\(device.driftUs / 1000)ms")
+                            .font(.caption)
+                    }
+                    BatteryIndicator(level: device.battery)
+                }
+                    .padding(.top, 6.0)
+                StatusCircle(color: device.connected ? .green : .red, size: 14.0)
             }
         }
     }
@@ -148,6 +155,7 @@ struct BatteryIndicator: View {
     var body: some View {
         VStack {
             Image(systemName: batteryImageName)
+                .frame(height: 10.0)
             Text("\(level)%")
                 .font(.caption)
 
