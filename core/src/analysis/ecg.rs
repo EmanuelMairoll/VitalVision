@@ -5,6 +5,7 @@ use ndarray::{Array1, ArrayView1};
 use noisy_float::prelude::Float;
 use crate::analysis::filter::{highpass_filter};
 use noisy_float::types::{R64, r64};
+use slog::{error, Logger, trace};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Parameters {
@@ -25,9 +26,10 @@ pub struct Results {
 }
 
 pub struct Analysis {
-    pub params: Parameters,
+    pub(crate) params: Parameters,
+    pub(crate) logger: Logger,
 
-    pub plotter: Option<Box<dyn Fn(
+    pub(crate) plotter: Option<Box<dyn Fn(
         ArrayView1<f64>,
         &str,
         &str,
@@ -36,6 +38,14 @@ pub struct Analysis {
 }
 
 impl Analysis {
+    pub fn new(params: Parameters, logger: Logger) -> Self {
+        Self {
+            params,
+            logger,
+            plotter: None,
+        }
+    }
+    
     pub fn analyze(&self, signal: ArrayView1<f64>) -> Results {
         self.plot_signal(signal, "Raw Signal", "signal_raw.png", None);
 
@@ -49,7 +59,7 @@ impl Analysis {
         self.plot_signal(filtered.view(), "Filtered Signal", "signal_filt.png", None);
 
         let mad = Analysis::median_absolute_deviation(filtered.view());
-        // println!("Median Absolute Deviation: {}", mad);
+        trace!(self.logger, "Median Absolute Deviation"; "mad" => mad);
         
         let peaks = self.find_peaks(mad, filtered.view());
 
@@ -133,10 +143,10 @@ impl Analysis {
         let distance = self.params.r_peak_distance as usize;
         let plateau = self.params.r_peak_plateau as usize;
         
-        //println!("Prominence: {}, Distance: {}, Plateau: {}", multiplier * mad, distance, plateau);
+        trace!(self.logger, "Peak Finding Parameters"; "Prominence" => multiplier * mad, "Distance" => distance, "Plateau" => plateau);
         
         let slice: &[f64] = signal.as_slice().unwrap_or_else(|| {
-            eprintln!("Failed to convert signal to slice");
+            error!(self.logger, "Failed to convert signal to slice");
             &[]
         });
         let peaks = PeakFinder::new(slice)
@@ -165,7 +175,7 @@ impl Analysis {
     fn plot_signal(&self, signal: ArrayView1<f64>, title: &str, filename: &str, points: Option<Vec<usize>>)  {
         if let Some(f) = &self.plotter {
             f(signal, title, filename, points).unwrap_or_else(|e| {
-                eprintln!("Error plotting {}: {}", filename, e);
+                error!(self.logger, "Error plotting {}: {}", filename, e);
             });
         } 
     }

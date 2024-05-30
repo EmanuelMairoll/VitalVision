@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-
+use slog::{Logger, o, Drain, trace, debug, error};
+use slog_async::Async;
+use slog_term::{FullFormat, TermDecorator};
 use tokio::sync::RwLock;
 use crate::analysis::{ppg, ecg};
 use crate::ble::ExternalBleEvent;
@@ -64,6 +66,7 @@ pub struct VVCore {
     data_storage: Arc<RwLock<storage::DataStorage>>,
     event_broadcast: tokio::sync::broadcast::Sender<VVCoreInternalEvent>,
     rt: tokio::runtime::Runtime,
+    logger: Logger,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -82,6 +85,18 @@ impl VVCore {
         let (event_broadcast, _) = tokio::sync::broadcast::channel(1000);
 
         let rt = tokio::runtime::Runtime::new().unwrap();
+
+        let decorator = TermDecorator::new().build();
+        let drain = FullFormat::new(decorator)
+            .use_utc_timestamp()  // Use UTC timestamp
+            .use_original_order() // Maintain the order of log fields as declared
+            .build()
+            .fuse();
+        let async_drain = Async::new(drain).build().fuse();
+        let logger = Logger::root(async_drain, o!("component" => "VVCore", "module" => "main"));
+
+        error!(logger, "Starting VVCore"; "config" => format!("{:?}", config));
+        
         Self {
             config,
             delegate,
@@ -89,11 +104,13 @@ impl VVCore {
             data_storage: arc_data_storage,
             event_broadcast,
             rt,
+            logger,
         }
     }
 
     pub fn start_ble_loop(&self) {
         if self.config.enable_mock_devices {
+            debug!(self.logger, "Starting mock BLE loop");
             let delegate = self.delegate.clone();
             let hist_size = self.config.hist_size_api;
             self.rt.spawn(async move {
@@ -106,17 +123,22 @@ impl VVCore {
 
         let (ble_tx, mut ble_rx) = tokio::sync::mpsc::channel(1000);
         let max_initial_rtt_ms = self.config.max_initial_rtt_ms;
-        let ble = Arc::new(ble::Ble::new(ble_tx, max_initial_rtt_ms));
+        let logger = self.logger.clone();
+        let ble = Arc::new(ble::Ble::new(ble_tx, max_initial_rtt_ms, logger));
 
+        let logger = self.logger.clone();
         let ble_clone = ble.clone();
         let ble_loop = rt.spawn(async move {
+            debug!(logger, "Starting BLE task");
             ble_clone.run_loop().await.unwrap();
         });
 
         let ble_clone = ble.clone();
         let sync_interval = self.config.sync_interval_sec;
         let analysis_interval = self.config.analysis_interval_points;
-        let sync_time_interval = rt.spawn(async move {
+        let logger = self.logger.clone();
+        let periodic_time_sync = rt.spawn(async move {
+            debug!(logger, "Starting periodic time sync task");
             loop {
                 tokio::time::sleep(tokio::time::Duration::from_secs(sync_interval)).await;
                 ble_clone.sync_time().await;
@@ -125,7 +147,9 @@ impl VVCore {
 
         let ble_clone = ble.clone();
         let mut rx = self.event_broadcast.subscribe();
-        let sync_time_event = rt.spawn(async move {
+        let logger = self.logger.clone();
+        let global_events = rt.spawn(async move {
+            debug!(logger, "Starting global event handler task");
             loop {
                 let event = rx.recv().await.unwrap();
                 match event {
@@ -139,19 +163,21 @@ impl VVCore {
         let device_storage = self.device_storage.clone();
         let data_storage = self.data_storage.clone();
         let delegate = self.delegate.clone();
+        
+        let ecg_analysis = ecg::Analysis::new(
+            self.config.ecg_analysis_params.clone(), 
+            self.logger.clone()
+        );
+        
+        let ppg_analysis = ppg::Analysis::new(
+            self.config.ppg_analysis_params.clone(), 
+            self.logger.clone()
+        );
+        
+        let logger = self.logger.clone();
 
-        let ecg_analysis = ecg::Analysis {
-            params: self.config.ecg_analysis_params.clone(),
-            plotter: None // Some(Box::new(VVCore::plot_signal)) 
-        };
-
-        let ppg_analysis = ppg::Analysis {
-            params: self.config.ppg_analysis_params.clone(),
-            plotter: None
-        };
-
-        let storage_handler = self.rt.spawn(async move {
-            println!("Starting storage handler");
+        let ble_event_handler = self.rt.spawn(async move {
+            debug!(logger, "Starting BLE event handler task");
             loop {
                 let event = ble_rx.recv().await;
                 if event.is_none() {
@@ -160,6 +186,7 @@ impl VVCore {
 
                 match event.unwrap() {
                     ExternalBleEvent::DeviceConnected(device) => {
+                        trace!(logger, "Device connected: {:?}", device);
                         let mut device_storage = device_storage.write().await;
                         device_storage.insert(device.id.clone(), device.clone());
                         delegate.devices_changed(device_storage.values().cloned().collect());
@@ -172,6 +199,7 @@ impl VVCore {
                         drop(data_storage);
                     }
                     ExternalBleEvent::DeviceDisconnected(uuid) => {
+                        trace!(logger, "Device disconnected: {:?}", uuid);
                         let mut device_storage = device_storage.write().await;
                         if let Some(device) = device_storage.get_mut(&uuid) {
                             device.connected = false;
@@ -190,16 +218,19 @@ impl VVCore {
                         }
                     }
                     ExternalBleEvent::BatteryLevelChanged(uuid, battery) => {
+                        trace!(logger, "Battery level changed: {:?} {:?}", uuid, battery);
                         let mut device_storage = device_storage.write().await;
                         device_storage.get_mut(&uuid).map(|x| x.battery = battery);
                         delegate.devices_changed(device_storage.values().cloned().collect());
                     }
                     ExternalBleEvent::DriftChanged(uuid, drift) => {
+                        trace!(logger, "Drift changed: {:?} {:?}", uuid, drift);
                         let mut device_storage = device_storage.write().await;
                         device_storage.get_mut(&uuid).map(|x| x.drift_us = drift);
                         delegate.devices_changed(device_storage.values().cloned().collect());
                     }
                     ExternalBleEvent::DataReceived(data) => {
+                        trace!(logger, "Data received: {:?}", data);
                         let mut data_storage = data_storage.write().await;
                         let mut analysis_results = HashMap::new();
 
@@ -209,24 +240,22 @@ impl VVCore {
                                 delegate.new_data(uuid.clone(), window_api.to_vec());
 
                                 if datapoint_counter > analysis_interval {
-                                    // println!("Analyzing data for {}", uuid);
+                                    trace!(logger, "Analyzing data for {}", uuid);
 
                                     // TODO: Clean this up, analysis should output a single result
                                     let mut quality: Option<f32> = match channel_type {
                                         ChannelType::ECG => {
-                                            // filter map
                                             let as_f64 = window_analysis.iter().filter_map(|x| x.map(|x| x as f64)).collect::<Vec<f64>>();
                                             let array = ndarray::Array1::from(as_f64);
                                             let results = ecg_analysis.analyze(array.view());
                                             Some(results.signal_quality.iter().map(|x| if *x == 1.0 { 1 } else { 0 }).sum::<u16>() as f32 / results.signal_quality.len() as f32)
-                                        },
+                                        }
                                         ChannelType::PPG => {
-                                            // filter map
                                             let as_f64 = window_analysis.iter().filter_map(|x| x.map(|x| x as f64)).collect::<Vec<f64>>();
                                             let array = ndarray::Array1::from(as_f64);
                                             let results = ppg_analysis.analyze(array);
                                             Some(results.signal_quality.iter().map(|x| if *x == 1 { 1 } else { 0 }).sum::<u16>() as f32 / results.signal_quality.len() as f32)
-                                        },
+                                        }
                                         _ => None,
                                     };
 
@@ -245,7 +274,7 @@ impl VVCore {
                         drop(data_storage);
 
                         if !analysis_results.is_empty() {
-                            // println!("Analysis results: {:?}", analysis_results);
+                            debug!(logger, "Analysis results: {:?}", analysis_results);
 
                             let mut device_storage = device_storage.write().await;
                             for device in device_storage.values_mut() {
@@ -262,7 +291,7 @@ impl VVCore {
             }
         });
 
-        let _handles = vec![ble_loop, sync_time_interval, sync_time_event, storage_handler];
+        let _handles = vec![ble_loop, periodic_time_sync, global_events, ble_event_handler];
         // maybe await on handles?
     }
 

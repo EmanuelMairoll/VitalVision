@@ -5,10 +5,15 @@ pub(crate) mod tests {
     use ndarray::{Array1, ArrayView1};
     use crate::analysis::{ecg, ppg};
     use plotters::prelude::*;
-    
+    use slog::{Logger, o, Drain, info};
+    use slog_async::Async;
+    use slog_term::{FullFormat, TermDecorator};
+
     #[test]
     fn test_ppg() {
         let file_path = "ppg.bin";
+
+        let logger = get_logger();
 
         let signal = load_signal_u16(file_path).expect("Failed to load signal");
         let params = ppg::Parameters {
@@ -21,21 +26,33 @@ pub(crate) mod tests {
             amplitude_max: 2000,
         };
 
-        let analyzer = ppg::Analysis { params, plotter: Some(Box::new(plot_signal)) };
+        let analyzer = ppg::Analysis { params, logger: logger.clone(), plotter: Some(Box::new(plot_signal)) };
         let signal = signal.map(|&x| (x as f64));
 
         // Run the analysis function
         let results = analyzer.analyze(signal);
 
-        // Example assertion (adjust according to your result handling)
-        //assert!(!results.hr_estimate.is_empty(), "Heart rate estimates should not be empty");
-        println!("{:?}", results.signal_quality);
+        info!(logger, "Signal quality results"; "results" => format!("{:?}", results.signal_quality));
         assert!(!results.signal_quality.is_empty(), "Signal quality results should not be empty");
+    }
+
+    fn get_logger() -> Logger {
+        let decorator = TermDecorator::new().build();
+        let drain = FullFormat::new(decorator)
+            .use_utc_timestamp()  // Use UTC timestamp
+            .use_original_order() // Maintain the order of log fields as declared
+            .build()
+            .fuse();
+        let async_drain = Async::new(drain).build().fuse();
+        let logger = Logger::root(async_drain, o!("component" => "VVCore", "module" => "analysis-tests"));
+        logger
     }
 
     #[test]
     fn test_ecg() {
         let file_path = "ecg.bin";
+
+        let logger = get_logger();
 
         let signal = load_signal_f64(file_path).expect("Failed to load signal");
         let params = ecg::Parameters {
@@ -50,16 +67,13 @@ pub(crate) mod tests {
             hr_max_diff: 20.0,
         };
 
-        let analyzer = ecg::Analysis { params, plotter: Some(Box::new(plot_signal)) };
-
-        // add random noise in the height of 0.05
-        // let signal = signal.map(|&x| (x + 0.05 * rand::random::<f64>()));
+        let analyzer = ecg::Analysis { params, logger: logger.clone(), plotter: Some(Box::new(plot_signal)) };
 
         // Run the analysis function
         let results = analyzer.analyze(signal.view());
 
-        println!("Heart rate: {:?}", results.hr_estimate);
-        println!("Signal quality: {:?}", results.signal_quality);
+        info!(logger, "Heart rate results"; "results" => format!("{:?}", results.hr_estimate));
+        info!(logger, "Signal quality results"; "results" => format!("{:?}", results.signal_quality));
 
         assert!(!results.hr_estimate.is_empty(), "Heart rate estimates should not be empty");
         assert!(!results.signal_quality.is_empty(), "Signal quality results should not be empty");

@@ -47,7 +47,6 @@ For developing without devices, the app also includes a "Mock Devices" toggle in
 ## Open TODOs
 1. Implement a power-saving "pause" feature, disconnecting all clients temporarily.
 2. Author detailed documentation for the different core components and the iOS frontend.
-3. Introduce structured logging in the core, removing the stray print statements.
 4. Clean up the repo commit history, the recent commits are bit of a mess.
 5. Ensure feature parity between the iOS and macOS frontends.
 

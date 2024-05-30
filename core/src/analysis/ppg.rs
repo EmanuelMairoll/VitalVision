@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::error::Error;
 use ndarray::{Array1, ArrayView1, s};
+use slog::{error, Logger, o, trace};
 use crate::analysis::filter::{bandpass_filter, lower_envelope_est};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -35,7 +36,7 @@ impl<'a> Pulse<'a> {
             end_trough_index: end,
         }
     }
-    
+
     // Methods to access pulse characteristics
     pub fn amplitude(&self) -> f64 {
         self.signal[self.peak_index] - self.signal[self.start_trough_index]
@@ -57,46 +58,54 @@ impl<'a> Pulse<'a> {
 }
 
 pub struct Analysis {
-    pub params: Parameters,
+    pub(crate) params: Parameters,
+    pub(crate) logger: Logger,
 
-    pub plotter: Option<Box<dyn Fn(
+    pub(crate) plotter: Option<Box<dyn Fn(
         ArrayView1<f64>,
         &str,
         &str,
-        Option<Vec<usize>>
+        Option<Vec<usize>>,
     ) -> Result<(), Box<dyn Error>> + Send + Sync>>,
 }
 
 impl Analysis {
+    pub fn new(params: Parameters, logger: Logger) -> Self {
+        let logger = logger.new(o!("module" => "ppg-analysis"));
+        Self {
+            params,
+            logger,
+            plotter: None,
+        }
+    }
+
     pub fn analyze(&self, signal: Array1<f64>) -> Results {
         self.plot_signal(signal.view(), "Raw Signal", "signal_raw.png", None);
-        
+
         let mean = signal.mean().unwrap();
         let normalized = signal.mapv(|a| a - mean);
-        
+
         self.plot_signal(normalized.view(), "Normalized Signal", "signal_normalized.png", None);
-        
+
         let filtered = self.filter(normalized.view());
-        
+
         self.plot_signal(filtered.view(), "Filtered Signal", "signal_filt.png", None);
-        
+
         let lower_env = self.lower_envelope(&filtered);
         let pulses = self.find_pulses(filtered.view(), &lower_env);
-        
+
         let points_trough = pulses.iter().map(|p| p.start_trough_index).collect::<Vec<_>>();
         self.plot_signal(filtered.view(), "Pulses", "signal_pulses.png", Some(points_trough));
-        
+
         if pulses.len() < 3 {
             return Results {
                 hr_estimate: vec![],
                 signal_quality: vec![0; pulses.len()],
             };
         }
-        
-        // drop first and last pulse
-        //let pulses = &pulses[1..pulses.len()-1];
+
         let valid_by_thresholds = self.validate_pulses(&pulses);
-        
+
         let points_peak = pulses.iter().map(|p| p.peak_index).collect::<Vec<_>>();
         let valid_peaks = points_peak.iter().enumerate().filter_map(|(i, &p)| {
             if valid_by_thresholds[i].0 && valid_by_thresholds[i].1 && valid_by_thresholds[i].2 {
@@ -108,19 +117,13 @@ impl Analysis {
 
         self.plot_signal(filtered.view(), "Peaks of valid Pulses", "signal_valid.png", Some(valid_peaks));
 
-        /*
-        println!("------------------------------------");
-
-        println!("Amplitudes: {:?}", pulses.iter().map(|p| p.amplitude()).collect::<Vec<f64>>());
-        println!("Trough depth differences: {:?}", pulses.iter().map(|p| p.trough_depth_difference()).collect::<Vec<f64>>());
-        println!("Relative depth differences: {:?}", pulses.iter().map(|p| p.relative_depth_difference()).collect::<Vec<f64>>());
-        println!("Pulse widths: {:?}", pulses.iter().map(|p| p.pulse_width(self.params.sampling_frequency as f64)).collect::<Vec<f64>>());
-        
-
-        println!("Valid pulses: {:?}", valid_by_thresholds);
-        
-        println!("------------------------------------");
-        */
+        trace!(self.logger, "Test Results";
+            "amplitudes" => format!("{:?}", pulses.iter().map(|p| p.amplitude()).collect::<Vec<f64>>()),
+            "trough_depth_differences" => format!("{:?}", pulses.iter().map(|p| p.trough_depth_difference()).collect::<Vec<f64>>()), 
+            "relative_depth_differences" => format!("{:?}", pulses.iter().map(|p| p.relative_depth_difference()).collect::<Vec<f64>>()),
+            "pulse_widths" => format!("{:?}", pulses.iter().map(|p| p.pulse_width(self.params.sampling_frequency as f64)).collect::<Vec<f64>>()), 
+            "valid_pulses" => format!("{:?}", valid_by_thresholds)
+        );
         
         Results {
             hr_estimate: vec![],
@@ -157,23 +160,23 @@ impl Analysis {
             .filter_map(|(i, (&s, &e))| if s == e { Some(i) } else { None })
             .collect();
 
-         trough_indices.windows(2)
+        trough_indices.windows(2)
             .map(|w| {
                 let start_trough = w[0];
                 let end_trough = w[1];
-                
+
                 let pulse = signal.slice(s![start_trough..=end_trough]);
                 let index_peak = pulse.iter().enumerate().max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal)).unwrap().0;
-                
+
                 Pulse::new(signal, start_trough, start_trough + index_peak, end_trough)
             }).collect()
     }
 
-    
+
     fn validate_pulses(&self, pulses: &[Pulse]) -> Vec<(bool, bool, bool)> {
         let amplitude_min = self.params.amplitude_min as f64;
         let amplitude_max = self.params.amplitude_max as f64;
-        
+
         pulses.iter().map(|pulse| {
             let amplitude_valid = amplitude_min <= pulse.amplitude() && pulse.amplitude() <= amplitude_max;
             let trough_depth_valid = (-0.25..=0.25).contains(&pulse.relative_depth_difference());
@@ -183,10 +186,10 @@ impl Analysis {
         }).collect()
     }
 
-    fn plot_signal(&self, signal: ArrayView1<f64>, title: &str, filename: &str, points: Option<Vec<usize>>)  {
+    fn plot_signal(&self, signal: ArrayView1<f64>, title: &str, filename: &str, points: Option<Vec<usize>>) {
         if let Some(f) = &self.plotter {
             f(signal, title, filename, points).unwrap_or_else(|e| {
-                eprintln!("Error plotting {}: {}", filename, e);
+                error!(self.logger, "Error plotting {}", filename; "error" => e.to_string());
             });
         }
     }
