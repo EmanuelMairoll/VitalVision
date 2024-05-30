@@ -43,6 +43,16 @@ pub enum ExternalBleEvent {
 
 type DatapointDecoder = Box<dyn Fn(Vec<u8>) -> HashMap<String, Vec<i32>> + Send + Sync>;
 
+const SERVICE_DEVICE_INFO: Uuid = Uuid::from_u128(0x0000180A00001000800000805F9B34FB);          // 0000180A-0000-1000-8000-00805F9B34FB
+const CHARACTERISTIC_SERIAL: Uuid = Uuid::from_u128(0x00002A2500001000800000805F9B34FB);        // 00002A25-0000-1000-8000-00805F9B34FB
+const CHARACTERISTIC_MODEL: Uuid = Uuid::from_u128(0x00002A2400001000800000805F9B34FB);         // 00002A24-0000-1000-8000-00805F9B34FB
+const SERVICE_BATTERY: Uuid = Uuid::from_u128(0x0000180F00001000800000805F9B34FB);              // 0000180F-0000-1000-8000-00805F9B34FB
+const CHARACTERISTIC_BATTERY: Uuid = Uuid::from_u128(0x00002A1900001000800000805F9B34FB);       // 00002A19-0000-1000-8000-00805F9B34FB
+const SERVICE_TIME: Uuid = Uuid::from_u128(0x0000180600001000800000805F9B34FB);                 // 00001806-0000-1000-8000-00805F9B34FB
+const CHARACTERISTIC_TIME: Uuid = Uuid::from_u128(0x00002A2D00001000800000805F9B34FB);          // 00002A2D-0000-1000-8000-00805F9B34FB
+const SERVICE_DATA: Uuid = Uuid::from_u128(0xDCF31A27A904F3A3AA4E5AE42F1217B6);                 // DCF31A27-A904-F3A3-AA4E-5AE42F1217B6
+const CHARACTERISTIC_DATA: Uuid = Uuid::from_u128(0xDCF31A27A904F4A3A24E5AE42F8617B6);          // DCF31A27-A904-F4A3-A24E-5AE42F8617B6
+
 impl Ble {
     pub fn new(event_publisher: Sender<ExternalBleEvent>, max_initial_rtt_ms: u32) -> Self {
         Self {
@@ -58,7 +68,7 @@ impl Ble {
         let central = adapters.into_iter().next().ok_or("No adapter found")?;
 
         central
-            .start_scan(ScanFilter { services: vec!["DCF31A27-A904-F3A3-AA4E-5AE42F1217B6".parse().unwrap()] })
+            .start_scan(ScanFilter { services: vec![SERVICE_DATA] })
             .await?;
         println!("Scanning for devices...");
 
@@ -124,20 +134,19 @@ impl Ble {
 
     async fn handle_value_notification(device_id: String, decoder: Arc<DatapointDecoder>, uuid: Uuid, value: Vec<u8>, event_publisher: Sender<ExternalBleEvent>) {
         match uuid {
-            uuid if uuid == Uuid::parse_str("00002a19-0000-1000-8000-00805f9b34fb").unwrap() => {
+            uuid if uuid == CHARACTERISTIC_BATTERY => {
                 if let Some(&battery_level) = value.first() {
                     println!("Battery level update: {}%", battery_level);
                     event_publisher.send(ExternalBleEvent::BatteryLevelChanged(device_id, battery_level)).await.unwrap();
                 }
             }
-            uuid if uuid == Uuid::parse_str("dcf31a27-a904-f4a3-a24e-5ae42f8617b6").unwrap() => {
+            uuid if uuid == CHARACTERISTIC_DATA => {
                 //println!("Received data notification, HEX DUMP: {:?}", value.iter().map(|x| format!("{:02x} ", x)).collect::<String>());
                 let decoded = decoder(value);
-                
+
                 event_publisher.send(ExternalBleEvent::DataReceived(decoded)).await.unwrap_or_else(|e| {
                     println!("Error sending data to event publisher: {:?}", e.to_string());
                     // if is SendError{}, print details
-                    
                 });
             }
             _ => println!(
@@ -178,7 +187,7 @@ impl Ble {
             connected: true,
             channels,
         };
-        
+
         let datapoint_decoder = Arc::new(datapoint_decoder);
 
         event_publisher.send(ExternalBleEvent::DeviceConnected(device_struct)).await?;
@@ -190,16 +199,13 @@ impl Ble {
             let ValueNotification { uuid, value, .. } = notification;
             Self::handle_value_notification(id.clone(), datapoint_decoder.clone(), uuid, value, event_publisher.clone()).await;
         }
-        
+
         //println!("Setup notification handling");
 
         Ok(())
     }
 
     async fn sync_time_for_device(device: &impl Peripheral, max_initial_rtt_ms: u32) -> Result<i64, Box<dyn Error>> {
-        let time_service_uuid = Uuid::parse_str("00001806-0000-1000-8000-00805f9b34fb")?;
-        let time_characteristic_uuid = Uuid::parse_str("00002a2d-0000-1000-8000-00805f9b34fb")?;
-        
         //return Ok(42);
 
         if !device.is_connected().await? {
@@ -207,11 +213,11 @@ impl Ble {
         }
 
         for service in device.services() {
-            if service.uuid == time_service_uuid {
+            if service.uuid == SERVICE_TIME {
                 for characteristic in &service.characteristics {
-                    if characteristic.uuid == time_characteristic_uuid {
+                    if characteristic.uuid == CHARACTERISTIC_TIME {
                         let mut rtt = -1;
-                        
+
                         // try at max 5 times
                         for _ in 0..5 {
                             let time_to_set = Utc::now();
@@ -247,34 +253,26 @@ impl Ble {
     async fn get_device_information_and_subscribe(
         device: &impl Peripheral,
     ) -> Result<(u16, String, u8, Vec<u8>), Box<dyn Error>> {
-        let service_uuid_device_info = Uuid::parse_str("0000180a-0000-1000-8000-00805f9b34fb")?;
-        let characteristic_uuid_serial = Uuid::parse_str("00002a25-0000-1000-8000-00805f9b34fb")?;
         let mut serial: u16 = 0;
-        let characteristic_uuid_model = Uuid::parse_str("00002a24-0000-1000-8000-00805f9b34fb")?;
         let mut model = "".to_string();
-
-        let service_uuid_battery = Uuid::parse_str("0000180f-0000-1000-8000-00805f9b34fb")?; // todo: replace with actual service uuid
-        let characteristic_uuid_battery = Uuid::parse_str("00002a19-0000-1000-8000-00805f9b34fb")?;
         let mut battery: u8 = 0;
 
         // TODO: move channel mapping to a separate characteristic
         // for now, we hardcode the channel mapping and differentiate ECG from non-ECG devices by
         // reading the initial data value, whose ECG data is constant 0 for non-ECG devices
-        let service_uuid_data = Uuid::parse_str("dcf31a27-a904-f3a3-aa4e-5ae42f1217b6")?;
-        let characteristic_uuid_data = Uuid::parse_str("dcf31a27-a904-f4a3-a24e-5ae42f8617b6")?;
         let mut first_data = vec![];
 
         for service in device.services() {
-            if service.uuid == service_uuid_device_info {
+            if service.uuid == SERVICE_DEVICE_INFO {
                 for characteristic in &service.characteristics {
-                    if characteristic.uuid == characteristic_uuid_serial {
+                    if characteristic.uuid == CHARACTERISTIC_SERIAL {
                         let serial_data = device.read(characteristic).await?;
                         let serial_str = String::from_utf8(serial_data);
                         serial = u16::from_str_radix(&serial_str.unwrap(), 10).unwrap();
 
                         println!("Serial: {:?}", serial);
                     }
-                    if characteristic.uuid == characteristic_uuid_model {
+                    if characteristic.uuid == CHARACTERISTIC_MODEL {
                         let model_data = device.read(characteristic).await?;
                         model = String::from_utf8(model_data)?;
                         println!("Model: {:?}", model);
@@ -282,9 +280,9 @@ impl Ble {
                 }
             }
 
-            if service.uuid == service_uuid_battery {
+            if service.uuid == SERVICE_BATTERY {
                 for characteristic in &service.characteristics {
-                    if characteristic.uuid == characteristic_uuid_battery {
+                    if characteristic.uuid == CHARACTERISTIC_BATTERY {
                         let battery_data = device.read(characteristic).await?;
                         battery = battery_data[0];
                         println!("Battery: {:?}", battery);
@@ -294,15 +292,15 @@ impl Ble {
                 }
             }
 
-            if service.uuid == service_uuid_data {
+            if service.uuid == SERVICE_DATA {
                 for characteristic in &service.characteristics {
-                    if characteristic.uuid == characteristic_uuid_data {
+                    if characteristic.uuid == CHARACTERISTIC_DATA {
                         // HACK: first_data should REALLY be readable, dummy value for now
-                        first_data = if serial == 72 {vec![1; 25]} else {vec![0; 25]};
-                        
+                        first_data = if serial == 72 { vec![1; 25] } else { vec![0; 25] };
+
                         //first_data = device.read(characteristic).await?;
                         println!("First data: {:?}", first_data);
-                        
+
                         device.subscribe(characteristic).await?;
                     }
                 }
@@ -403,7 +401,7 @@ impl Ble {
 
             let decoder = Box::new(move |value: Vec<u8>| {
                 let mut data_points = HashMap::new();
-                
+
                 let mut ppg_grn = vec![];
                 ppg_grn.push(u16::from_le_bytes([value[3], value[4]]) as i32);
                 ppg_grn.push(u16::from_le_bytes([value[11], value[12]]) as i32);
