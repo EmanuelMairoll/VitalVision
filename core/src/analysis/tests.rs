@@ -22,8 +22,12 @@ pub(crate) mod tests {
             filter_cutoff_high: 10.0,
             filter_order: 4,
             envelope_range: 23, // 0.666 seconds
-            amplitude_min: 10,
-            amplitude_max: 2000,
+            amplitude_min: 10.0,
+            amplitude_max: 2000.0,
+            trough_depth_min: -0.25,
+            trough_depth_max: 0.25,
+            pulse_width_min: 0.333, // 200 bpm
+            pulse_width_max: 1.5, // 40 bpm
         };
 
         let analyzer = ppg::Analysis { params, logger: logger.clone(), plotter: Some(Box::new(plot_signal)) };
@@ -32,8 +36,8 @@ pub(crate) mod tests {
         // Run the analysis function
         let results = analyzer.analyze(signal);
 
-        info!(logger, "Signal quality results"; "results" => format!("{:?}", results.signal_quality));
-        assert!(!results.signal_quality.is_empty(), "Signal quality results should not be empty");
+        assert!(results.is_some(), "Signal quality results should not be None");
+        assert!(results.unwrap().signal_quality > 0.5, "Signal quality should be greater than 0.0");
     }
 
     fn get_logger() -> Logger {
@@ -75,8 +79,8 @@ pub(crate) mod tests {
         info!(logger, "Heart rate results"; "results" => format!("{:?}", results.hr_estimate));
         info!(logger, "Signal quality results"; "results" => format!("{:?}", results.signal_quality));
 
-        assert!(!results.hr_estimate.is_empty(), "Heart rate estimates should not be empty");
-        assert!(!results.signal_quality.is_empty(), "Signal quality results should not be empty");
+        assert!(results.hr_estimate > 40.0, "Heart rate estimates should not be empty");
+        assert!(results.signal_quality > 0.5, "Signal quality results should not be empty");
 
     }
 

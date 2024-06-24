@@ -11,13 +11,17 @@ pub struct Parameters {
     pub filter_cutoff_high: f64,
     pub filter_order: u32,
     pub envelope_range: u16,
-    pub amplitude_min: i32,
-    pub amplitude_max: i32,
+    pub amplitude_min: f64,
+    pub amplitude_max: f64,
+    pub trough_depth_min: f64,
+    pub trough_depth_max: f64,
+    pub pulse_width_min: f64,
+    pub pulse_width_max: f64,
 }
 
 pub struct Results {
-    pub hr_estimate: Vec<u16>,
-    pub signal_quality: Vec<u16>,
+    pub hr_estimate: f64,
+    pub signal_quality: f64,
 }
 
 pub struct Pulse<'a> {
@@ -79,7 +83,7 @@ impl Analysis {
         }
     }
 
-    pub fn analyze(&self, signal: Array1<f64>) -> Results {
+    pub fn analyze(&self, signal: Array1<f64>) -> Option<Results> {
         self.plot_signal(signal.view(), "Raw Signal", "signal_raw.png", None);
 
         let mean = signal.mean().unwrap();
@@ -98,10 +102,7 @@ impl Analysis {
         self.plot_signal(filtered.view(), "Pulses", "signal_pulses.png", Some(points_trough));
 
         if pulses.len() < 3 {
-            return Results {
-                hr_estimate: vec![],
-                signal_quality: vec![0; pulses.len()],
-            };
+            return None;
         }
 
         let valid_by_thresholds = self.validate_pulses(&pulses);
@@ -125,22 +126,22 @@ impl Analysis {
             "valid_pulses" => format!("{:?}", valid_by_thresholds)
         );
         
-        Results {
-            hr_estimate: vec![],
-            signal_quality: valid_by_thresholds.iter().map(|&(v1, v2, v3)| {
-                if v1 && v2 && v3 {
-                    1
-                } else {
-                    if !v1 {
-                        2
-                    } else if !v2 {
-                        3
-                    } else {
-                        4
-                    }
-                }
-            }).collect(),
-        }
+        let hr_estimate = 60.0 / pulses.iter().map(|p| p.pulse_width(self.params.sampling_frequency)).sum::<f64>() / (pulses.len() as f64);
+        let valid_pulse_count = valid_by_thresholds.iter().filter(|&&(v1, v2, v3)| v1 && v2 && v3).count();
+        // by sampling freq, max pulse width, signal length
+        
+        // ensure we have a lower bound on the number of pulses
+        let signal_duration = signal.len() as f64 / self.params.sampling_frequency;
+        let min_pulses = signal_duration / self.params.pulse_width_max;
+        
+        let signal_quality = valid_pulse_count as f64 / f64::max(min_pulses, pulses.len() as f64);
+        
+        
+        Some(Results {
+            hr_estimate,
+            signal_quality,
+        })
+
     }
 
     fn filter(&self, data: ArrayView1<f64>) -> Array1<f64> {
@@ -174,13 +175,17 @@ impl Analysis {
 
 
     fn validate_pulses(&self, pulses: &[Pulse]) -> Vec<(bool, bool, bool)> {
-        let amplitude_min = self.params.amplitude_min as f64;
-        let amplitude_max = self.params.amplitude_max as f64;
-
+        let amplitude_min = self.params.amplitude_min;
+        let amplitude_max = self.params.amplitude_max;
+        let trough_depth_min = self.params.trough_depth_min;
+        let trough_depth_max = self.params.trough_depth_max;
+        let pulse_width_min = self.params.pulse_width_min;
+        let pulse_width_max = self.params.pulse_width_max;
+        
         pulses.iter().map(|pulse| {
             let amplitude_valid = amplitude_min <= pulse.amplitude() && pulse.amplitude() <= amplitude_max;
-            let trough_depth_valid = (-0.25..=0.25).contains(&pulse.relative_depth_difference());
-            let pulse_width_valid = (1.0 / 3.0..=1.5).contains(&pulse.pulse_width(self.params.sampling_frequency as f64));
+            let trough_depth_valid = (trough_depth_min..=trough_depth_max).contains(&pulse.relative_depth_difference());
+            let pulse_width_valid = (pulse_width_min..=pulse_width_max).contains(&pulse.pulse_width(self.params.sampling_frequency));
 
             (amplitude_valid, trough_depth_valid, pulse_width_valid)
         }).collect()

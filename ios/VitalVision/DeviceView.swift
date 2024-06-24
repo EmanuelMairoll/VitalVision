@@ -68,14 +68,14 @@ struct DeviceDetailView: View {
                 TextField("Location", text: $additionalData.location ?? "")
                 TextField("Other", text: $additionalData.other ?? "")
             }
-            Section(header: Text("Channels")) {
+            Section {
                 ForEach(device.channels, id: \.id) { channel in
-                    #if os(macOS)
+#if os(macOS)
                     Text(channel.name)
                         .font(.title)
                     ChannelDetailView(core: core, channel: channel)
                     Divider()
-                    #else
+#else
                     NavigationLink(destination: ChannelDetailView(core: core, channel: channel)) {
                         ChannelPreviewView(channel: channel, isWatched: additionalData.watchIds.contains(channel.id))
                     }
@@ -94,8 +94,12 @@ struct DeviceDetailView: View {
                             }
                         }
                     }
-                    #endif
+#endif
                 }
+            } header: {
+                Text("Channels")
+            } footer: {
+                Text("Long press on a channel to watch it")
             }
         }
         .navigationTitle(device.name)

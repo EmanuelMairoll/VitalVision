@@ -127,7 +127,7 @@ struct ContentView: View {
                             }
                         }
                     }
-                    .navigationTitle("BLE Devices")
+                    .navigationTitle("SIPLAB Devices")
                     EmptyView()
                 } else {
                     Text("Loading...")

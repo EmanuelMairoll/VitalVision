@@ -73,8 +73,12 @@ class VitalVisionCore {
                 filterCutoffHigh: config.ppgFilterCutoffHigh,
                 filterOrder: UInt32(config.ppgFilterOrder),
                 envelopeRange: UInt16(config.ppgEnvelopeRange),
-                amplitudeMin: Int32(config.ppgAmplitudeMin),
-                amplitudeMax: Int32(config.ppgAmplitudeMax)
+                amplitudeMin: Double(config.ppgAmplitudeMin),
+                amplitudeMax: Double(config.ppgAmplitudeMax),
+                troughDepthMin: -0.25,
+                troughDepthMax: 0.25,
+                pulseWidthMin: 0.333,
+                pulseWidthMax: 1.5 //TODO
             )
         )
         

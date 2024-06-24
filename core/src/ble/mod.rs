@@ -145,7 +145,7 @@ impl Ble {
         Ok(())
     }
 
-    pub async fn forward_event(&self, event: VVCoreInternalEvent) {
+    pub(crate) async fn forward_event(&self, event: VVCoreInternalEvent) {
         let tx_lock = self.tx.lock().await;
         if let Some(tx) = &*tx_lock {
             tx.send(InternalBleEvent::ForwardedEvent(event)).await.unwrap();

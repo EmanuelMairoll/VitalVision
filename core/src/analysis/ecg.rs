@@ -21,8 +21,8 @@ pub struct Parameters {
 }
 
 pub struct Results {
-    pub hr_estimate: Vec<f64>,
-    pub signal_quality: Vec<f64>,
+    pub hr_estimate: f64,
+    pub signal_quality: f64,
 }
 
 pub struct Analysis {
@@ -45,7 +45,7 @@ impl Analysis {
             plotter: None,
         }
     }
-    
+
     pub fn analyze(&self, signal: ArrayView1<f64>) -> Results {
         self.plot_signal(signal, "Raw Signal", "signal_raw.png", None);
 
@@ -60,34 +60,39 @@ impl Analysis {
 
         let mad = Analysis::median_absolute_deviation(filtered.view());
         trace!(self.logger, "Median Absolute Deviation"; "mad" => mad);
-        
+
         let peaks = self.find_peaks(mad, filtered.view());
 
         self.plot_signal(filtered.view(), "Peaks", "signal_peaks.png", Some(peaks.clone()));
         
         let (hr, diff_hr) = self.analyze_bpm(peaks);
 
-        let in_range: Vec<bool> = hr.iter().map(|&bpm| bpm >= 40.0 && bpm <= 180.0).collect();
-        let changes_in_range: Vec<bool> = diff_hr.iter().map(|&change| change.abs() <= 20.0).collect();
+        let hr_min = self.params.hr_min;
+        let hr_max = self.params.hr_max;
+        let hr_max_diff = self.params.hr_max_diff;
+        let in_range: Vec<bool> = hr.iter().map(|&bpm| bpm >= hr_min && bpm <= hr_max).collect();
+        let changes_in_range: Vec<bool> = diff_hr.iter().map(|&change| change.abs() <= hr_max_diff).collect();
         
+        // only for plotting
         let hr_view = Array1::from(hr.clone());
-        let hr_invalid_indices: Vec<usize> = in_range.iter().enumerate().filter(|(_, &valid)| valid).map(|(i, _)| i).collect();
-        self.plot_signal(hr_view.view(), "BPM","signal_bpm.png", Some(hr_invalid_indices));
-
+        let hr_valid_indices: Vec<usize> = in_range.iter().enumerate().filter(|(_, &valid)| valid).map(|(i, _)| i).collect();
+        self.plot_signal(hr_view.view(), "BPM","signal_bpm.png", Some(hr_valid_indices));
         let hr_diff_view = Array1::from(diff_hr.clone());
-        let hr_diff_invalid_indices: Vec<usize> = changes_in_range.iter().enumerate().filter(|(_, &valid)| valid).map(|(i, _)| i).collect();
-        self.plot_signal(hr_diff_view.view(), "diff BPM" , "signal_bpm_diff.png", Some(hr_diff_invalid_indices));
+        let hr_diff_valid_indices: Vec<usize> = changes_in_range.iter().enumerate().filter(|(_, &valid)| valid).map(|(i, _)| i).collect();
+        self.plot_signal(hr_diff_view.view(), "diff BPM" , "signal_bpm_diff.png", Some(hr_diff_valid_indices));
 
-        let signal_quality: Vec<f64> = hr.iter().zip(diff_hr.iter()).map(|(&bpm, &diff)| {
-            if bpm >= 40.0 && bpm <= 180.0 && diff.abs() <= 20.0 {
-                1.0
-            } else {
-                0.0
-            }
-        }).collect();
+        let valid_pulse_count = in_range.iter().zip(changes_in_range.iter()).map(|(&a, &b)| a && b).count();
+
+        // ensure we have a lower bound on the number of pulses
+        let signal_duration = signal.len() as f64 / self.params.sampling_frequency;
+        let pulse_width_max = 60.0 / self.params.hr_min;
+        let min_pulses = signal_duration / pulse_width_max;
+
+        let hr_estimate = hr.iter().sum::<f64>() / hr.len() as f64;
+        let signal_quality = valid_pulse_count as f64 / f64::max(min_pulses, hr.len() as f64);
         
         Results {
-            hr_estimate: hr,
+            hr_estimate,
             signal_quality,
         }
     }
@@ -142,9 +147,9 @@ impl Analysis {
         let multiplier = self.params.r_peak_prominence_mad_multiple;
         let distance = self.params.r_peak_distance as usize;
         let plateau = self.params.r_peak_plateau as usize;
-        
+
         trace!(self.logger, "Peak Finding Parameters"; "Prominence" => multiplier * mad, "Distance" => distance, "Plateau" => plateau);
-        
+
         let slice: &[f64] = signal.as_slice().unwrap_or_else(|| {
             error!(self.logger, "Failed to convert signal to slice");
             &[]

@@ -98,7 +98,7 @@ impl VVCore {
         let logger = Logger::root(async_drain, o!("component" => "VVCore", "module" => "main"));
 
         error!(logger, "Starting VVCore"; "config" => format!("{:?}", config));
-        
+
         Self {
             config,
             delegate,
@@ -134,7 +134,7 @@ impl VVCore {
             debug!(logger, "Starting BLE task");
             ble_clone.run_loop().await.unwrap();
         });
-
+        
         let ble_clone = ble.clone();
         let sync_interval = self.config.sync_interval_sec;
         let analysis_interval = self.config.analysis_interval_points;
@@ -162,17 +162,17 @@ impl VVCore {
         let device_storage = self.device_storage.clone();
         let data_storage = self.data_storage.clone();
         let delegate = self.delegate.clone();
-        
+
         let ecg_analysis = ecg::Analysis::new(
-            self.config.ecg_analysis_params.clone(), 
-            self.logger.clone()
+            self.config.ecg_analysis_params.clone(),
+            self.logger.clone(),
         );
-        
+
         let ppg_analysis = ppg::Analysis::new(
-            self.config.ppg_analysis_params.clone(), 
-            self.logger.clone()
+            self.config.ppg_analysis_params.clone(),
+            self.logger.clone(),
         );
-        
+
         let logger = self.logger.clone();
 
         let ble_event_handler = self.rt.spawn(async move {
@@ -248,13 +248,17 @@ impl VVCore {
                                             let as_f64 = window_analysis.iter().filter_map(|x| x.map(|x| x as f64)).collect::<Vec<f64>>();
                                             let array = ndarray::Array1::from(as_f64);
                                             let results = ecg_analysis.analyze(array.view());
-                                            Some(results.signal_quality.iter().map(|x| if *x == 1.0 { 1 } else { 0 }).sum::<u16>() as f32 / results.signal_quality.len() as f32)
+                                            Some(results.signal_quality as f32)
                                         }
                                         ChannelType::PPG => {
                                             let as_f64 = window_analysis.iter().filter_map(|x| x.map(|x| x as f64)).collect::<Vec<f64>>();
                                             let array = ndarray::Array1::from(as_f64);
                                             let results = ppg_analysis.analyze(array);
-                                            Some(results.signal_quality.iter().map(|x| if *x == 1 { 1 } else { 0 }).sum::<u16>() as f32 / results.signal_quality.len() as f32)
+                                            if let Some(results) = results {
+                                                Some(results.signal_quality as f32)
+                                            } else {
+                                                None
+                                            }
                                         }
                                         _ => None,
                                     };
@@ -302,7 +306,7 @@ impl VVCore {
 
         let _ = self.event_broadcast.send(VVCoreInternalEvent::SyncTime);
     }
-    
+
     pub fn pause(&self) {
         if self.config.enable_mock_devices {
             return;
@@ -310,7 +314,7 @@ impl VVCore {
 
         let _ = self.event_broadcast.send(VVCoreInternalEvent::Pause);
     }
-    
+
     pub fn resume(&self) {
         if self.config.enable_mock_devices {
             return;
@@ -320,5 +324,12 @@ impl VVCore {
     }
 }
 
-    
+fn main() {
+    let hello: String = String::from("Hello");
+    some_other_function(hello.clone());
+    println!("{}", hello);
+}
 
+fn some_other_function(input: String) {
+    println!("{}", input);
+}

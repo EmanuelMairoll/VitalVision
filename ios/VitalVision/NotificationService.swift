@@ -44,6 +44,7 @@ class NotificationService {
         for device in devices {
             for channel in device.channels {
                 if !watchedChannels.contains(channel.id) {
+                    trackedChannels.removeValue(forKey: channel.id)
                     continue
                 }
                 

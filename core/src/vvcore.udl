@@ -54,8 +54,12 @@ dictionary PPGAnalysisParameters {
     f64 filter_cutoff_high;
     u32 filter_order;
     u16 envelope_range;
-    i32 amplitude_min;
-    i32 amplitude_max;
+    f64 amplitude_min;
+    f64 amplitude_max;
+    f64 trough_depth_min;
+    f64 trough_depth_max;
+    f64 pulse_width_min;
+    f64 pulse_width_max;
 };
 
 [Trait, WithForeign]
