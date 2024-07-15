@@ -9,7 +9,6 @@ project.xcworkspace
 .DS_Store
 .zed/tasks.json
 ios/VitalVision.xcodeproj/xcshareddata/xcschemes/VitalVision.xcscheme
-signal/VitalVision-signal-playground/.idea
-signal/VitalVision-signal-playground/notebooks/.ipynb_checkpoints
-signal/vvcore
 
+signal/vvcore
+signal/.idea
