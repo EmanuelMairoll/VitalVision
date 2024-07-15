@@ -323,13 +323,3 @@ impl VVCore {
         let _ = self.event_broadcast.send(VVCoreInternalEvent::Resume);
     }
 }
-
-fn main() {
-    let hello: String = String::from("Hello");
-    some_other_function(hello.clone());
-    println!("{}", hello);
-}
-
-fn some_other_function(input: String) {
-    println!("{}", input);
-}
