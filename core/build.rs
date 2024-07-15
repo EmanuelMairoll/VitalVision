@@ -1,4 +1,4 @@
-use uniffi_bindgen::bindings::TargetLanguage::{Kotlin, Swift};
+use uniffi_bindgen::bindings::TargetLanguage::{Kotlin, Swift, Python};
 use uniffi_bindgen::generate_bindings;
 
 fn main() {
@@ -8,7 +8,7 @@ fn main() {
     generate_bindings(
         udl_file.into(),
         None,
-        vec![Swift, Kotlin],
+        vec![Swift, Kotlin, Python],
         Some(out_dir.into()),
         None,
         None,
