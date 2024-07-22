@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use slog::{Logger, o, Drain, trace, debug, error};
-use slog_async::Async;
-use slog_term::{FullFormat, TermDecorator};
+use slog::{debug, error, Logger, trace};
 use tokio::sync::RwLock;
 use crate::analysis::{ppg, ecg};
 use crate::ble::ExternalBleEvent;
@@ -12,6 +10,7 @@ uniffi::include_scaffolding!("vvcore");
 pub mod ble;
 pub mod storage;
 mod analysis;
+mod log;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Device {
@@ -39,8 +38,18 @@ pub enum ChannelType {
     PPG,
 }
 
+// TODO: This is a bit of a hack, but it works for now
+// We should probably have a separate module etc. for the analysis "subpackage"
 pub type ECGAnalysisParameters = ecg::Parameters;
+pub type ECGAnalysisResults = ecg::Results;
+pub type ECGAnalysis = ecg::Analysis;
+
 pub type PPGAnalysisParameters = ppg::Parameters;
+
+pub type PPGAnalysisResults = ppg::Results;
+
+pub type PPGAnalysis = ppg::Analysis;
+
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct VVCoreConfig {
@@ -88,15 +97,8 @@ impl VVCore {
 
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        let decorator = TermDecorator::new().build();
-        let drain = FullFormat::new(decorator)
-            .use_utc_timestamp()  // Use UTC timestamp
-            .use_original_order() // Maintain the order of log fields as declared
-            .build()
-            .fuse();
-        let async_drain = Async::new(drain).build().fuse();
-        let logger = Logger::root(async_drain, o!("component" => "VVCore", "module" => "main"));
-
+        let logger = log::create_logger("VVCore".to_string());
+        
         error!(logger, "Starting VVCore"; "config" => format!("{:?}", config));
 
         Self {
@@ -108,6 +110,10 @@ impl VVCore {
             rt,
             logger,
         }
+    }
+    
+    pub fn add_logger(&mut self, logger: Logger) {
+        self.logger = logger;
     }
 
     pub fn start_ble_loop(&self) {
@@ -163,12 +169,12 @@ impl VVCore {
         let data_storage = self.data_storage.clone();
         let delegate = self.delegate.clone();
 
-        let ecg_analysis = ecg::Analysis::new(
+        let ecg_analysis = ecg::Analysis::new_with_logs(
             self.config.ecg_analysis_params.clone(),
             self.logger.clone(),
         );
 
-        let ppg_analysis = ppg::Analysis::new(
+        let ppg_analysis = ppg::Analysis::new_with_logs(
             self.config.ppg_analysis_params.clone(),
             self.logger.clone(),
         );
@@ -246,14 +252,12 @@ impl VVCore {
                                     let mut quality: Option<f32> = match channel_type {
                                         ChannelType::ECG => {
                                             let as_f64 = window_analysis.iter().filter_map(|x| x.map(|x| x as f64)).collect::<Vec<f64>>();
-                                            let array = ndarray::Array1::from(as_f64);
-                                            let results = ecg_analysis.analyze(array.view());
+                                            let results = ecg_analysis.analyze(as_f64);
                                             Some(results.signal_quality as f32)
                                         }
                                         ChannelType::PPG => {
                                             let as_f64 = window_analysis.iter().filter_map(|x| x.map(|x| x as f64)).collect::<Vec<f64>>();
-                                            let array = ndarray::Array1::from(as_f64);
-                                            let results = ppg_analysis.analyze(array);
+                                            let results = ppg_analysis.analyze(as_f64);
                                             if let Some(results) = results {
                                                 Some(results.signal_quality as f32)
                                             } else {

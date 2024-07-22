@@ -3,6 +3,7 @@ use std::error::Error;
 use ndarray::{Array1, ArrayView1, s};
 use slog::{error, Logger, o, trace};
 use crate::analysis::filter::{bandpass_filter, lower_envelope_est};
+use crate::log::create_logger;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Parameters {
@@ -19,6 +20,7 @@ pub struct Parameters {
     pub pulse_width_max: f64,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct Results {
     pub hr_estimate: f64,
     pub signal_quality: f64,
@@ -74,8 +76,7 @@ pub struct Analysis {
 }
 
 impl Analysis {
-    pub fn new(params: Parameters, logger: Logger) -> Self {
-        let logger = logger.new(o!("module" => "ppg-analysis"));
+    pub fn new_with_logs(params: Parameters, logger: Logger) -> Self {
         Self {
             params,
             logger,
@@ -83,8 +84,19 @@ impl Analysis {
         }
     }
 
-    pub fn analyze(&self, signal: Array1<f64>) -> Option<Results> {
-        self.plot_signal(signal.view(), "Raw Signal", "signal_raw.png", None);
+    pub fn new(params: Parameters) -> Self {
+        let logger = create_logger("analysis".to_string())
+            .new(o!("module" => "ppg-analysis"));
+        Self::new_with_logs(params, logger)
+    }
+
+    pub fn analyze(&self, signal: Vec<f64>) -> Option<Results> {
+        let signal = Array1::from(signal);
+        self.analyze_view(signal.view())
+    }
+
+    pub fn analyze_view(&self, signal: ArrayView1<f64>) -> Option<Results> {
+        self.plot_signal(signal, "Raw Signal", "signal_raw.png", None);
 
         let mean = signal.mean().unwrap();
         let normalized = signal.mapv(|a| a - mean);

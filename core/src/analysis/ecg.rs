@@ -1,11 +1,13 @@
 use std::cmp::Ordering;
 use std::error::Error;
+use std::string::ToString;
 use find_peaks::PeakFinder;
 use ndarray::{Array1, ArrayView1};
 use noisy_float::prelude::Float;
 use crate::analysis::filter::{highpass_filter};
 use noisy_float::types::{R64, r64};
-use slog::{error, Logger, trace};
+use slog::{Logger, o, trace, error};
+use crate::log::create_logger;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Parameters {
@@ -38,15 +40,26 @@ pub struct Analysis {
 }
 
 impl Analysis {
-    pub fn new(params: Parameters, logger: Logger) -> Self {
+    pub fn new_with_logs(params: Parameters, logger: Logger) -> Self {
         Self {
             params,
             logger,
             plotter: None,
         }
     }
+    
+    pub fn new(params: Parameters) -> Self {
+        let logger = create_logger("analysis".to_string())
+            .new(o!("module" => "ppg-analysis"));
+        Self::new_with_logs(params, logger)
+    }
 
-    pub fn analyze(&self, signal: ArrayView1<f64>) -> Results {
+    pub fn analyze(&self, signal: Vec<f64>) -> Results {
+        let signal = Array1::from(signal);
+        self.analyze_view(signal.view())
+    }
+    
+    pub fn analyze_view(&self, signal: ArrayView1<f64>) -> Results {
         self.plot_signal(signal, "Raw Signal", "signal_raw.png", None);
 
         let mean = signal.mean().unwrap_or(0.0);

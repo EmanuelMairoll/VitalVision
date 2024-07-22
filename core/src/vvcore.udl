@@ -80,3 +80,23 @@ interface VVCore {
     
     void resume();
 };
+
+dictionary ECGAnalysisResults {
+    f64 hr_estimate;
+    f64 signal_quality;
+};
+
+interface ECGAnalysis {
+    constructor(ECGAnalysisParameters params);
+    ECGAnalysisResults analyze(sequence<f64> signal);
+};
+
+dictionary PPGAnalysisResults {
+    f64 hr_estimate;
+    f64 signal_quality;
+};
+
+interface PPGAnalysis {
+    constructor(PPGAnalysisParameters params);
+    PPGAnalysisResults? analyze(sequence<f64> signal);
+};

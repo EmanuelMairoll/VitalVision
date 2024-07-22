@@ -34,7 +34,7 @@ pub(crate) mod tests {
         let signal = signal.map(|&x| (x as f64));
 
         // Run the analysis function
-        let results = analyzer.analyze(signal);
+        let results = analyzer.analyze_view(signal.view());
 
         assert!(results.is_some(), "Signal quality results should not be None");
         assert!(results.unwrap().signal_quality > 0.5, "Signal quality should be greater than 0.0");
@@ -74,7 +74,7 @@ pub(crate) mod tests {
         let analyzer = ecg::Analysis { params, logger: logger.clone(), plotter: Some(Box::new(plot_signal)) };
 
         // Run the analysis function
-        let results = analyzer.analyze(signal.view());
+        let results = analyzer.analyze_view(signal.view());
 
         info!(logger, "Heart rate results"; "results" => format!("{:?}", results.hr_estimate));
         info!(logger, "Signal quality results"; "results" => format!("{:?}", results.signal_quality));

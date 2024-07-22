@@ -11,7 +11,7 @@ use futures::stream::{StreamExt, select};
 use std::error::Error;
 use std::pin::Pin;
 use std::sync::Arc;
-use slog::{error, warn, trace};
+use slog::{error, warn, trace, o, debug};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::{Mutex};
 use tokio_stream::Stream;
