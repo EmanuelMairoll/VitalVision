@@ -137,11 +137,17 @@ impl Analysis {
             "pulse_widths" => format!("{:?}", pulses.iter().map(|p| p.pulse_width(self.params.sampling_frequency as f64)).collect::<Vec<f64>>()), 
             "valid_pulses" => format!("{:?}", valid_by_thresholds)
         );
-        
-        let hr_estimate = 60.0 / pulses.iter().map(|p| p.pulse_width(self.params.sampling_frequency)).sum::<f64>() / (pulses.len() as f64);
-        let valid_pulse_count = valid_by_thresholds.iter().filter(|&&(v1, v2, v3)| v1 && v2 && v3).count();
+
+
+
         // by sampling freq, max pulse width, signal length
-        
+        let valid_pulse_sum_widths = pulses.iter().zip(valid_by_thresholds.iter())
+            .filter_map(|(p, &(v1, v2, v3))| if v1 && v2 && v3 { Some(p.pulse_width(self.params.sampling_frequency)) } else { None })
+            .sum::<f64>();
+        let valid_pulse_count = valid_by_thresholds.iter().filter(|&&(v1, v2, v3)| v1 && v2 && v3).count();
+
+        let hr_estimate = 60.0 / (valid_pulse_sum_widths / valid_pulse_count as f64);
+
         // ensure we have a lower bound on the number of pulses
         let signal_duration = signal.len() as f64 / self.params.sampling_frequency;
         let min_pulses = signal_duration / self.params.pulse_width_max;

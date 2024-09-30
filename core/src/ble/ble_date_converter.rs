@@ -1,6 +1,7 @@
 use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
 use std::convert::TryInto;
 use std::error::Error;
+use chrono::LocalResult::Single;
 
 const U16_MICROSECOND_STEP: f64 = 15.2587890625;
 
@@ -44,11 +45,18 @@ pub fn ble_data_to_time(data: &[u8]) -> Result<DateTime<Utc>, Box<dyn Error>> {
 
         let fractions_in_us = (fractions as f64 * U16_MICROSECOND_STEP).round() as u32;
 
-        let date_time =
-            Utc.ymd(year, month, day)
-                .and_hms_micro(hour, minute, second, fractions_in_us);
+        let date = Utc.ymd_opt(year, month, day);
 
-        Ok(date_time)
+        if let Single(date) = date {
+            let date_time = date.and_hms_micro_opt(hour, minute, second, fractions_in_us);
+            if let Some(date_time) = date_time {
+                return Ok(date_time);
+            } else { 
+                return Err("Invalid time".into())
+            }
+        } else { 
+            Err("Invalid date".into())
+        }
     } else {
         Err("Invalid BLE time data format".into())
     }
@@ -63,7 +71,7 @@ mod tests {
     #[test]
     fn test_time_to_ble_data() {
         let time = Utc.ymd(2023, 4, 1).and_hms_micro(12, 34, 56, 789001); // 789001 us, because 789001 / 15.2587890625 rounds nicely t0 51708 (0xC9FC)
-        let expected_data = vec![0xE7, 0x07, 4, 1, 12, 34, 56, 5, 0xFC, 0xC9, 0];
+        let expected_data = vec![0xE7, 0x07, 4, 1, 12, 34, 56, 6, 0xFC, 0xC9, 0];
         let ble_data = time_to_ble_data(time);
         assert_eq!(ble_data.len(), 11);
         assert_eq!(ble_data, expected_data);
@@ -89,7 +97,7 @@ mod tests {
 
     #[test]
     fn test_ble_data_to_time_to_ble_data() {
-        let data = vec![0xE7, 0x07, 4, 1, 12, 34, 56, 5, 0x34, 0x12, 0];
+        let data = vec![0xE7, 0x07, 4, 1, 12, 34, 56, 6, 0x34, 0x12, 0];
         let time = ble_data_to_time(&data).unwrap();
         let ble_data = time_to_ble_data(time);
         assert_eq!(data, ble_data);
@@ -103,4 +111,14 @@ mod tests {
             Err(_) => {}
         }
     }
+    
+    #[test]
+    fn test_ble_data_to_time_invalid_date() {
+        let data = vec![0xE7, 0x07, 4, 31, 12, 34, 56, 5, 0x34, 0x12, 0];
+        match ble_data_to_time(&data) {
+            Ok(_) => panic!("Expected error for invalid date"),
+            Err(_) => {}
+        }
+    }   
+    
 }

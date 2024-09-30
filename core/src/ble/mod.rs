@@ -121,9 +121,12 @@ impl Ble {
                         tokio::spawn(async move {
                             let id = device.id().to_string();
                             trace!(logger, "Syncing time for device"; "device_id" => id.clone());
-                            let rtt = Ble::sync_time_for_device(&device, max_initial_rtt_ms, &logger).await.unwrap();
+                            let drift = Ble::sync_time_for_device(&device, max_initial_rtt_ms, &logger).await.unwrap_or_else(|e| {
+                                error!(logger, "Failed to sync time for device"; "device_id" => id.clone(), "error" => format!("{:?}", e));
+                                0
+                            });
 
-                            event_publisher.send(ExternalBleEvent::DriftChanged(id, rtt)).await.unwrap();
+                            event_publisher.send(ExternalBleEvent::DriftChanged(id, drift)).await.unwrap();
                         });
                     }
                 }
@@ -183,8 +186,11 @@ impl Ble {
         device.discover_services().await?;
 
         let id = device.id().to_string();
-
-        let drift = Ble::sync_time_for_device(device, max_initial_rtt_ms, logger).await?;
+        
+        let drift = Ble::sync_time_for_device(device, max_initial_rtt_ms, logger).await.unwrap_or_else(|e| {
+            error!(logger, "Failed to sync time for device"; "device_id" => id.clone(), "error" => format!("{:?}", e));
+            0
+        });
 
         let (serial, model, battery, first_data) =
             Ble::get_device_information_and_subscribe(device, logger).await?;
